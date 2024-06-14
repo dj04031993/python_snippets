@@ -1,0 +1,43 @@
+import json
+
+def find_differences(json1, json2, path=""):
+    """
+    Finds the key-value pairs in json1 that are not present in json2.
+    """
+    differences = []
+    
+    if isinstance(json1, dict) and isinstance(json2, dict):
+        for key in json1:
+            new_path = f"{path}.{key}" if path else key
+            if key not in json2:
+                differences.append((new_path, json1[key], None))
+            else:
+                differences.extend(find_differences(json1[key], json2[key], new_path))
+    elif isinstance(json1, list) and isinstance(json2, list):
+        for index, item in enumerate(json1):
+            if index >= len(json2):
+                differences.append((f"{path}[{index}]", item, None))
+            elif item != json2[index]:
+                differences.extend(find_differences(item, json2[index], f"{path}[{index}]"))
+    else:
+        if json1 != json2:
+            differences.append((path, json1, json2))
+    
+    return differences
+
+# Example usage
+json_str1 = '{"name": "John", "age": 30, "city": "New York"}'
+json_str2 = '{"name": "John", "age": 31, "city": "New York", "country": "USA"}'
+
+json1 = json.loads(json_str1)
+json2 = json.loads(json_str2)
+
+differences = find_differences(json1, json2)
+
+if differences:
+    print("The following key-value pairs are different between the two JSON objects:")
+    for diff in differences:
+        path, value1, value2 = diff
+        print(f"Path: {path}, Value in JSON1: {value1}, Value in JSON2: {value2}")
+else:
+    print("All key-value pairs in the first JSON are present in the second JSON.")
