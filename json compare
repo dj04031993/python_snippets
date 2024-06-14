@@ -1,0 +1,30 @@
+import json
+
+def is_subset(json1, json2):
+    """
+    Checks if all key-value pairs in json1 are present in json2.
+    """
+    if isinstance(json1, dict) and isinstance(json2, dict):
+        for key, value in json1.items():
+            if key not in json2 or not is_subset(value, json2[key]):
+                return False
+        return True
+    elif isinstance(json1, list) and isinstance(json2, list):
+        for item in json1:
+            if item not in json2:
+                return False
+        return True
+    else:
+        return json1 == json2
+
+# Example usage
+json_str1 = '{"name": "John", "age": 30, "city": "New York"}'
+json_str2 = '{"name": "John", "age": 30, "city": "New York", "country": "USA"}'
+
+json1 = json.loads(json_str1)
+json2 = json.loads(json_str2)
+
+if is_subset(json1, json2):
+    print("All key-value pairs in the first JSON are present in the second JSON.")
+else:
+    print("Not all key-value pairs in the first JSON are present in the second JSON.")
