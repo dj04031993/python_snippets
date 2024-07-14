@@ -41,3 +41,60 @@ if differences:
         print(f"Path: {path}, Value in JSON1: {value1}, Value in JSON2: {value2}")
 else:
     print("All key-value pairs in the first JSON are present in the second JSON.")
+
+
+
+
+
+
+
+
+
+import threading
+import time
+
+class FileHandler:
+    def __init__(self, file_path, interval):
+        self.file_path = file_path
+        self.interval = interval  # Interval in seconds (300 seconds = 5 minutes)
+        self.active = True
+        self.file = None
+
+    def open_file(self):
+        try:
+            self.file = open(self.file_path, 'a')  # Open file in append mode
+            print(f"File {self.file_path} opened.")
+        except Exception as e:
+            print(f"Failed to open file: {e}")
+
+    def close_file(self):
+        if self.file and not self.file.closed:
+            self.file.close()
+            print(f"File {self.file_path} closed.")
+
+    def handle_file(self):
+        while self.active:
+            self.open_file()
+            time.sleep(self.interval)
+            self.close_file()
+            time.sleep(self.interval)
+
+    def start(self):
+        self.handler_thread = threading.Thread(target=self.handle_file)
+        self.handler_thread.start()
+
+    def stop(self):
+        self.active = False
+        self.handler_thread.join()
+
+if __name__ == "__main__":
+    file_handler = FileHandler("example.txt", 300)
+    file_handler.start()
+
+    try:
+        while True:
+            # The main thread can perform other tasks or simply wait
+            time.sleep(1)
+    except KeyboardInterrupt:
+        file_handler.stop()
+
