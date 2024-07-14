@@ -45,29 +45,36 @@ else:
 
 
 
-
-
-
+import os
 import time
 import threading
+import subprocess
 
 class FileActivitySimulator:
     def __init__(self, file_path, interval):
         self.file_path = file_path
         self.interval = interval  # Interval in seconds
         self.active = True
+        self.process = None
+
+    def open_file(self):
+        try:
+            self.process = subprocess.Popen(['start', 'excel', self.file_path], shell=True)
+            print(f"Opened file {self.file_path}")
+        except Exception as e:
+            print(f"Failed to open file: {e}")
+
+    def close_file(self):
+        if self.process:
+            self.process.terminate()
+            self.process = None
+            print(f"Closed file {self.file_path}")
 
     def simulate_activity(self):
         while self.active:
-            try:
-                print(f"Opening file {self.file_path}")
-                with open(self.file_path, 'a') as file:
-                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                    file.write(f"Activity at {timestamp}\n")
-                    print(f"Appended activity at {timestamp}")
-                print(f"Closing file {self.file_path}")
-            except Exception as e:
-                print(f"Failed to write to file: {e}")
+            self.open_file()
+            time.sleep(self.interval)
+            self.close_file()
             time.sleep(self.interval)
 
     def start(self):
@@ -76,10 +83,12 @@ class FileActivitySimulator:
 
     def stop(self):
         self.active = False
+        if self.process:
+            self.process.terminate()
         self.activity_thread.join()
 
 if __name__ == "__main__":
-    simulator = FileActivitySimulator("activity_log.txt", 10)
+    simulator = FileActivitySimulator("example.xlsx", 10)  # Replace with your Excel file path
     simulator.start()
 
     try:
@@ -87,5 +96,6 @@ if __name__ == "__main__":
             time.sleep(1)
     except KeyboardInterrupt:
         simulator.stop()
+
 
 
