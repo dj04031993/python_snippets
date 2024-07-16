@@ -99,3 +99,26 @@ if __name__ == "__main__":
 
 
 
+import time
+
+def open_and_close_text_file(file_path):
+    try:
+        # Open the text file
+        with open(file_path, 'r') as file:
+            print(f"{time.ctime()}: Opened {file_path}")
+            # Simulate some operation on the text file
+            time.sleep(1)  # Keep the file open for 1 second for demonstration purposes
+        # The file is automatically closed when exiting the 'with' block
+        print(f"{time.ctime()}: Closed {file_path}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def main(file_path):
+    while True:
+        open_and_close_text_file(file_path)
+        # Wait for 5 minutes before repeating
+        time.sleep(5 * 60)
+
+if __name__ == "__main__":
+    file_path = "path/to/your/text/file.txt"
+    main(file_path)
