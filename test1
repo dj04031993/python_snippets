@@ -1,0 +1,37 @@
+import concurrent.futures
+import requests
+import time
+
+def make_post_request(url, data):
+    response = requests.post(url, json=data)
+    return response.json()
+
+def parallel_post_requests(url, data_list, max_workers=10):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_data = {executor.submit(make_post_request, url, data): data for data in data_list}
+        results = []
+        for future in concurrent.futures.as_completed(future_to_data):
+            data = future_to_data[future]
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as exc:
+                print(f'Request for data {data} generated an exception: {exc}')
+    return results
+
+# Example usage
+if __name__ == "__main__":
+    api_url = "https://api.example.com/endpoint"
+    data_to_send = [
+        {"key1": "value1", "key2": "value2"},
+        {"key1": "value3", "key2": "value4"},
+        {"key1": "value5", "key2": "value6"},
+        # Add more data dictionaries as needed
+    ]
+
+    start_time = time.time()
+    results = parallel_post_requests(api_url, data_to_send)
+    end_time = time.time()
+
+    print(f"Completed {len(results)} requests in {end_time - start_time:.2f} seconds")
+    print("Results:", results)
