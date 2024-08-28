@@ -1,0 +1,45 @@
+import requests
+
+def send_post_request(url, data, token):
+    # Set up the headers
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # Send the POST request
+        response = requests.post(url, json=data, headers=headers)
+        
+        # Check if the request was successful
+        response.raise_for_status()
+        
+        # Return the response JSON
+        return response.json()
+    
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+        return None
+
+# Example usage
+if __name__ == "__main__":
+    # API endpoint
+    url = "https://api.example.com/endpoint"
+    
+    # Your Bearer token
+    bearer_token = "your_bearer_token_here"
+    
+    # Data to be sent in the POST request
+    data = {
+        "key1": "value1",
+        "key2": "value2"
+    }
+    
+    # Send the request
+    response = send_post_request(url, data, bearer_token)
+    
+    if response:
+        print("Request successful!")
+        print("Response:", response)
+    else:
+        print("Request failed.")
