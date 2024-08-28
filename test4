@@ -1,0 +1,36 @@
+import json
+from pathlib import Path
+
+def filter_json_lines(input_file: str, output_file: str, keyword: str) -> int:
+    input_path = Path(input_file)
+    output_path = Path(output_file)
+    
+    matched_lines = 0
+    
+    with input_path.open('r', encoding='utf-8') as infile, \
+         output_path.open('w', encoding='utf-8') as outfile:
+        
+        for line in infile:
+            try:
+                # Parse the JSON line
+                json_obj = json.loads(line.strip())
+                
+                # Check if the keyword is in any of the values (case-insensitive)
+                if any(keyword.lower() in str(value).lower() for value in json_obj.values()):
+                    outfile.write(line)
+                    matched_lines += 1
+            
+            except json.JSONDecodeError:
+                # Skip lines that are not valid JSON
+                continue
+    
+    return matched_lines
+
+if __name__ == "__main__":
+    input_file = "input_file.json"
+    output_file = "filtered_lowes.txt"
+    keyword = "HELLO"
+    
+    matched_count = filter_json_lines(input_file, output_file, keyword)
+    print(f"Processed file. Found {matched_count} lines containing '{keyword}'.")
+    print(f"Results written to {output_file}")
