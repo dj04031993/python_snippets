@@ -1,0 +1,93 @@
+import pandas as pd
+
+# Read the CSV in chunks to manage memory usage
+chunk_size = 100000  # Adjust based on your system's memory
+df_iterator = pd.read_csv('your_large_file.csv', chunksize=chunk_size)
+
+
+--Define validation functions:
+def validate_chunk(df):
+    # Example validation checks
+    validations = {
+        'currentAccountNbr': df['currentAccountNbr'].notna() & (df['currentAccountNbr'].astype(str).str.len() == 10),
+        'cdsScore15': (df['cdsScore15'] >= 300) & (df['cdsScore15'] <= 850),
+        'cdsScoreDate14': pd.to_datetime(df['cdsScoreDate14'], errors='coerce').notna(),
+        'atpFlag': df['atpFlag'].isin(['Y', 'N']),
+        'monthlyIncome': (df['monthlyIncome'] > 0) & (df['monthlyIncome'] < 1000000),
+        'debtRatio': (df['debtRatio'] >= 0) & (df['debtRatio'] <= 1),
+        # Add more validation checks for other columns
+    }
+    return pd.DataFrame(validations)
+
+
+
+all_results = []
+for chunk in df_iterator:
+    validation_results = validate_chunk(chunk)
+    all_results.append(validation_results)
+
+
+
+
+---Aggregate and analyze results:
+final_results = pd.concat(all_results)
+
+# Summary of validation results
+summary = final_results.sum() / len(final_results) * 100
+print("Percentage of valid data per column:")
+print(summary)
+
+# Identify problematic rows
+problematic_rows = final_results[~final_results.all(axis=1)]
+print(f"Number of rows with validation issues: {len(problematic_rows)}")
+
+
+
+---Detailed analysis of issues (if needed):
+def analyze_issues(df, validation_results):
+    issues = ~validation_results
+    for column in issues.columns:
+        if issues[column].any():
+            print(f"\nIssues in {column}:")
+            print(df.loc[issues[column], column].head())  # Show first few problematic values
+
+# Reread the CSV and apply detailed analysis
+for chunk, validation_chunk in zip(pd.read_csv('your_large_file.csv', chunksize=chunk_size), all_results):
+    analyze_issues(chunk, validation_chunk)
+
+
+
+import logging
+
+logging.basicConfig(filename='data_validation.log', level=logging.INFO)
+logging.info("Data validation summary:\n%s", summary.to_string())
+logging.info("Number of problematic rows: %d", len(problematic_rows))
+
+
+
+-- concurrent processing 
+
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
+
+def process_chunk(chunk):
+    return validate_chunk(chunk)
+
+with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+    all_results = list(executor.map(process_chunk, df_iterator))
+
+
+
+
+
+
+_________________________________
+This approach allows you to:
+
+Handle large datasets without memory issues
+Perform comprehensive validation checks
+Get an overall summary of data quality
+Identify and analyze specific problematic rows
+Log results for further analysis or reporting
+
+Remember to adjust the validation checks in the validate_chunk function to match your specific data requirements and business rules. Also, consider the trade-offs between thoroughness of validation and processing time, especially for very large datasets.
