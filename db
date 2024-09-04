@@ -1,0 +1,1 @@
+SELECT name, modified FROM mysql.proc WHERE db = 'your_database_name';
