@@ -1,0 +1,27 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Create a sample DataFrame with a single column
+df = pd.DataFrame({
+    'category': ['A', 'B', 'A', 'C', 'B', 'B', 'A', 'C', 'D', 'A', 'B', 'C']
+})
+
+# Calculate the frequency of each category
+frequency = df['category'].value_counts().sort_index()
+
+# Create the bar chart
+plt.figure(figsize=(10, 6))
+frequency.plot(kind='bar')
+
+# Customize the chart
+plt.title('Frequency of Categories')
+plt.xlabel('Category')
+plt.ylabel('Frequency')
+
+# Add value labels on top of each bar
+for i, v in enumerate(frequency):
+    plt.text(i, v, str(v), ha='center', va='bottom')
+
+# Display the chart
+plt.tight_layout()
+plt.show()
