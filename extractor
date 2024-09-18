@@ -1,0 +1,30 @@
+def read_account_numbers(file_path):
+    with open(file_path, 'r') as file:
+        return set(line.strip() for line in file)
+
+def extract_lines_with_account_numbers(main_file_path, account_numbers):
+    extracted_lines = []
+    with open(main_file_path, 'r') as file:
+        for line in file:
+            if any(account_number in line for account_number in account_numbers):
+                extracted_lines.append(line.strip())
+    return extracted_lines
+
+def write_extracted_lines(output_file_path, extracted_lines):
+    with open(output_file_path, 'w') as file:
+        for line in extracted_lines:
+            file.write(line + '\n')
+
+def main():
+    account_numbers_file = 'account_numbers.txt'  # File containing account numbers
+    main_file = 'main_text_file.txt'  # Your main text file with thousands of lines
+    output_file = 'extracted_lines.txt'  # File to store the extracted lines
+
+    account_numbers = read_account_numbers(account_numbers_file)
+    extracted_lines = extract_lines_with_account_numbers(main_file, account_numbers)
+    write_extracted_lines(output_file, extracted_lines)
+
+    print(f"Extraction complete. {len(extracted_lines)} lines were extracted to {output_file}")
+
+if __name__ == "__main__":
+    main()
