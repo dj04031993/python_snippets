@@ -1,0 +1,45 @@
+import json
+
+def is_valid_json(json_string):
+    try:
+        json.loads(json_string)
+        return True
+    except json.JSONDecodeError:
+        return False
+
+def test_json_validator():
+    test_cases = [
+        ('{"name": "John", "age": 30}', True),
+        ('{"name": "John", "age": 30,}', False),  # Trailing comma
+        ('{"name": "John", "age": "30"}', True),
+        ('{"name": "John", "age": 30, "city": null}', True),
+        ('{"name": "John", "hobbies": ["reading", "cycling"]}', True),
+        ('{"name": "John", "hobbies": ["reading", "cycling",]}', False),  # Trailing comma
+        ('{"name": John}', False),  # Missing quotes around string
+        ('Not a JSON at all', False)
+    ]
+
+    for i, (json_string, expected) in enumerate(test_cases, 1):
+        result = is_valid_json(json_string)
+        print(f"Test case {i}:")
+        print(f"Input: {json_string}")
+        print(f"Expected: {expected}")
+        print(f"Result: {result}")
+        print("Pass" if result == expected else "Fail")
+        print()
+
+if __name__ == "__main__":
+    # Example usage
+    test_json_validator()
+
+    # Interactive testing
+    while True:
+        user_input = input("Enter a JSON string to validate (or 'quit' to exit): ")
+        if user_input.lower() == 'quit':
+            break
+        
+        if is_valid_json(user_input):
+            print("Valid JSON")
+        else:
+            print("Invalid JSON")
+        print()
