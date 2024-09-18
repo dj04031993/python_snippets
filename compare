@@ -1,0 +1,36 @@
+def read_account_numbers(file_path):
+    with open(file_path, 'r') as file:
+        return set(line.strip() for line in file)
+
+def compare_account_numbers(file1_path, file2_path):
+    accounts1 = read_account_numbers(file1_path)
+    accounts2 = read_account_numbers(file2_path)
+    
+    only_in_file1 = accounts1 - accounts2
+    only_in_file2 = accounts2 - accounts1
+    
+    return only_in_file1, only_in_file2
+
+def print_differences(only_in_file1, only_in_file2, file1_name, file2_name):
+    print(f"Account numbers only in {file1_name}:")
+    for account in sorted(only_in_file1):
+        print(account)
+    
+    print(f"\nAccount numbers only in {file2_name}:")
+    for account in sorted(only_in_file2):
+        print(account)
+
+def main():
+    file1_path = 'accounts_file1.txt'
+    file2_path = 'accounts_file2.txt'
+    
+    only_in_file1, only_in_file2 = compare_account_numbers(file1_path, file2_path)
+    
+    print_differences(only_in_file1, only_in_file2, file1_path, file2_path)
+    
+    print(f"\nSummary:")
+    print(f"Number of accounts only in {file1_path}: {len(only_in_file1)}")
+    print(f"Number of accounts only in {file2_path}: {len(only_in_file2)}")
+
+if __name__ == "__main__":
+    main()
