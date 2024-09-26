@@ -1,1 +1,2 @@
-#
+    label.extend([f"{prefix}: {val}" for val in df[col].astype(str).unique()])
+
