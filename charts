@@ -1,1 +1,55 @@
-###########
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
+
+# Assuming your DataFrame is named 'df'
+# If not, replace 'df' with your actual DataFrame name
+df['xyzcu_crd_bureau_scr_binned'] = pd.cut(df['xyzcu_crd_bureau_scr'], bins=5, labels=['Very Low', 'Low', 'Medium', 'High', 'Very High'])
+
+# Define the columns for our Sankey nodes
+columns = ['xyzca_mnths_since_cl_chng', 'xyzrdti', 'xyzca_mob', 'xyzcu_crd_bureau_scr', 'xyzbmv_4_score', 'xyzsegment_value']
+
+# Prepare data for Sankey diagram
+source = []
+target = []
+value = []
+
+# Create edges between consecutive columns
+for i in range(len(columns) - 1):
+    group = df.groupby([columns[i], columns[i+1]]).size().reset_index(name='count')
+    source.extend(group[columns[i]].astype('category').cat.codes + sum(len(df[col].unique()) for col in columns[:i]))
+    target.extend(group[columns[i+1]].astype('category').cat.codes + sum(len(df[col].unique()) for col in columns[:i+1]))
+    value.extend(group['count'])
+
+# Create node labels
+label = []
+for col in columns:
+    label.extend(df[col].astype(str).unique())
+
+# Create color scale
+color_scale = px.colors.qualitative.Plotly[:len(columns)]
+node_colors = []
+for i, col in enumerate(columns):
+    node_colors.extend([color_scale[i]] * len(df[col].unique()))
+
+# Create Sankey diagram
+fig = go.Figure(data=[go.Sankey(
+    node = dict(
+      pad = 15,
+      thickness = 20,
+      line = dict(color = "black", width = 0.5),
+      label = label,
+      color = node_colors
+    ),
+    link = dict(
+      source = source,
+      target = target,
+      value = value
+  ))])
+
+# Update layout
+fig.update_layout(title_text="Customer Flow Sankey Diagram", font_size=10)
+
+# Show the figure
+fig.show()
