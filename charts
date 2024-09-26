@@ -1,0 +1,50 @@
+import pandas as pd
+import plotly.graph_objects as go
+import numpy as np
+
+# Assuming your DataFrame is named 'df'
+# If not, replace 'df' with your actual DataFrame name
+
+# Define the columns for our Sankey nodes
+columns = ['xyzca_mnths_since_cl_chngxyz', 'xyzrdtixyz', 'xyzca_mobxyz', 'xyzcu_crd_bureau_scrxyz', 'xyzbmv_4_scorexyz', 'xyzsegment_valuexyz']
+
+# Prepare data for Sankey diagram
+source = []
+target = []
+value = []
+
+# Create edges between consecutive columns
+for i in range(len(columns) - 1):
+    group = df.groupby([columns[i], columns[i+1]]).size().reset_index(name='count')
+    source.extend(group[columns[i]].astype('category').cat.codes)
+    target.extend(group[columns[i+1]].astype('category').cat.codes + len(df[columns[i]].unique()))
+    value.extend(group['count'])
+
+# Create node labels
+label = list(df[columns[0]].unique()) + list(df[columns[1]].unique()) + \
+         list(df[columns[2]].unique()) + list(df[columns[3]].unique()) + \
+         list(df[columns[4]].unique()) + list(df[columns[5]].unique())
+
+# Create color scale
+color_scale = px.colors.qualitative.Plotly
+
+# Create Sankey diagram
+fig = go.Figure(data=[go.Sankey(
+    node = dict(
+      pad = 15,
+      thickness = 20,
+      line = dict(color = "black", width = 0.5),
+      label = label,
+      color = color_scale[:len(label)]
+    ),
+    link = dict(
+      source = source,
+      target = target,
+      value = value
+  ))])
+
+# Update layout
+fig.update_layout(title_text="Customer Flow Sankey Diagram", font_size=10)
+
+# Show the figure
+fig.show()
