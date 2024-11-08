@@ -1,0 +1,36 @@
+import pandas as pd
+
+def convert_jsonl_to_csv(input_file, output_file):
+    """
+    Convert a file containing JSON lines to CSV format using pandas read_json.
+    
+    Args:
+        input_file (str): Path to the input file containing JSON lines
+        output_file (str): Path to the output CSV file
+    """
+    try:
+        # Read JSON lines directly into DataFrame
+        df = pd.read_json(input_file, lines=True)
+        
+        # Write to CSV
+        df.to_csv(output_file, index=False)
+        
+        print(f"Successfully converted {input_file} to {output_file}")
+        print(f"Number of records processed: {len(df)}")
+        
+        # Display first few rows and data info
+        print("\nFirst few rows of the data:")
+        print(df.head())
+        print("\nDataset information:")
+        print(df.info())
+        
+    except FileNotFoundError:
+        print(f"Error: Could not find input file {input_file}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    input_file = "input.txt"  # Change this to your input file name
+    output_file = "output.csv"  # Change this to your desired output file name
+    
+    convert_jsonl_to_csv(input_file, output_file)
