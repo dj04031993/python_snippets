@@ -1,0 +1,30 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Example data for the `global_cldcls_elig` column
+data = {
+    'global': ['Fail', 'Success', 'Not Eligible', 'Fail', 'Fail', 'Success', 
+                           'Not Eligible', 'Fail', 'Success', 'Not Eligible']
+}
+
+# Creating the DataFrame
+df = pd.DataFrame(data)
+
+# Count occurrences for each unique category
+value_counts = df['global'].value_counts()
+
+# Create the bar graph
+plt.figure(figsize=(8, 6))
+value_counts.plot(kind='bar', color='skyblue', edgecolor='black')
+
+# Customize the plot
+plt.title('Distribution of Global  Eligibility', fontsize=16)
+plt.xlabel('Eligibility Status', fontsize=12)
+plt.ylabel('Count', fontsize=12)
+plt.xticks(rotation=45, fontsize=10)
+plt.yticks(fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+# Show the plot
+plt.tight_layout()
+plt.show()
