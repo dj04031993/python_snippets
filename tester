@@ -1,0 +1,29 @@
+import requests
+
+def send_post_request_with_file(url, file_path):
+    # Read the contents of the text file
+    with open(file_path, 'r') as file:
+        text_data = file.read()
+
+    # Set the headers for the request
+    headers = {
+        'Content-Type': 'text/plain'
+    }
+
+    # Send the POST request
+    response = requests.post(url, data=text_data, headers=headers)
+
+    # Check the response status code
+    if response.status_code == 200:
+        print("POST request successful")
+        print("Response:", response.text)
+    else:
+        print("POST request failed")
+        print("Status code:", response.status_code)
+        print("Response:", response.text)
+
+# Example usage
+api_url = 'https://api.example.com/endpoint'
+file_path = 'data.txt'
+
+send_post_request_with_file(api_url, file_path)
