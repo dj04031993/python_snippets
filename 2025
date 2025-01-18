@@ -1,67 +1,123 @@
 import json
+from typing import Dict, Any, Tuple, Set
 
-def add_double_quotes(json_obj):
+def normalize_json(data: Dict[str, Any]) -> Dict[str, str]:
     """
-    Recursively ensure all keys and string values in the JSON object have double quotes.
-
-    :param json_obj: dict or list, the JSON object to process
-    :return: dict or list, the updated JSON object with double-quoted keys and values
+    Recursively convert all values in a dictionary to strings.
     """
-    if isinstance(json_obj, dict):
-        return {f'"{key}"': add_double_quotes(value) if isinstance(value, (dict, list)) else f'"{value}"' if isinstance(value, str) else value for key, value in json_obj.items()}
-    elif isinstance(json_obj, list):
-        return [add_double_quotes(item) for item in json_obj]
-    return f'"{json_obj}"' if isinstance(json_obj, str) else json_obj
+    normalized = {}
+    for key, value in data.items():
+        if isinstance(value, dict):
+            normalized[key] = normalize_json(value)
+        elif isinstance(value, (list, tuple)):
+            normalized[key] = str([str(item) for item in value])
+        else:
+            normalized[key] = str(value)
+    return normalized
 
-def compare_json(input_json, output_json):
+def flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
     """
-    Compares input and output JSONs to check for missing and additional key-value pairs.
-
-    :param input_json: dict, the input JSON
-    :param output_json: dict, the output JSON
-    :return: tuple, (missing_pairs, additional_pairs)
+    Flatten a nested dictionary by concatenating nested keys with dots.
     """
-    missing_pairs = {}
-    additional_pairs = {}
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
-    # Add double quotes to all keys and string values
-    input_json = add_double_quotes(input_json)
-    output_json = add_double_quotes(output_json)
-
-    # Convert keys back to normal strings for comparison
-    normalized_input = {key.strip('"'): value for key, value in input_json.items()}
-    normalized_output = {key.strip('"'): value for key, value in output_json.items()}
-
-    # Check for missing key-value pairs in the output JSON
-    for key, value in normalized_input.items():
-        if key not in normalized_output or normalized_output[key] != value:
-            missing_pairs[key] = value
-
-    # Check for additional key-value pairs in the output JSON
-    for key, value in normalized_output.items():
-        if key not in normalized_input:
-            additional_pairs[key] = value
-
-    return missing_pairs, additional_pairs
-
-# Example Usage
-if __name__ == "__main__":
-    # Prompt user for Input JSON
-    input_json_str = input("Enter the Input JSON: ")
-    output_json_str = input("Enter the Output JSON: ")
-
+def compare_jsons(json1: str, json2: str) -> Tuple[Set[tuple], Set[tuple]]:
+    """
+    Compare two JSON strings and return missing and additional key-value pairs.
+    
+    Args:
+        json1: First JSON string (base for comparison)
+        json2: Second JSON string
+    
+    Returns:
+        Tuple containing:
+        - Set of missing key-value pairs (present in json1 but not in json2)
+        - Set of additional key-value pairs (present in json2 but not in json1)
+    """
     try:
-        input_json = json.loads(input_json_str)
-        output_json = json.loads(output_json_str)
-
-        # Compare JSONs
-        missing, additional = compare_json(input_json, output_json)
-
-        # Display Results
-        print("\nMissing Key-Value Pairs in Output JSON:")
-        print(json.dumps(missing, indent=4))
-
-        print("\nAdditional Key-Value Pairs in Output JSON:")
-        print(json.dumps(additional, indent=4))
+        # Parse JSON strings
+        dict1 = json.loads(json1)
+        dict2 = json.loads(json2)
+        
+        # Normalize and flatten both dictionaries
+        norm_dict1 = flatten_dict(normalize_json(dict1))
+        norm_dict2 = flatten_dict(normalize_json(dict2))
+        
+        # Convert to sets of tuples for comparison
+        items1 = set(norm_dict1.items())
+        items2 = set(norm_dict2.items())
+        
+        # Find missing and additional items
+        missing = items1 - items2
+        additional = items2 - items1
+        
+        return missing, additional
+        
     except json.JSONDecodeError as e:
-        print(f"Error parsing JSON: {e}")
+        raise ValueError(f"Invalid JSON format: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Error comparing JSONs: {str(e)}")
+
+def format_diff_output(missing: Set[tuple], additional: Set[tuple]) -> str:
+    """
+    Format the comparison results into a readable string.
+    """
+    output = []
+    
+    if missing:
+        output.append("Missing key-value pairs (present in first JSON but not in second):")
+        for key, value in sorted(missing):
+            output.append(f"  - {key}: {value}")
+    
+    if additional:
+        if output:
+            output.append("")  # Add blank line between sections
+        output.append("Additional key-value pairs (present in second JSON but not in first):")
+        for key, value in sorted(additional):
+            output.append(f"  + {key}: {value}")
+    
+    if not missing and not additional:
+        output.append("JSONs are identical after normalization.")
+    
+    return "\n".join(output)
+
+# Example usage
+if __name__ == "__main__":
+    # Example JSON strings
+    json1 = '''
+    {
+        "name": "John",
+        "age": 30,
+        "scores": [85, 90, 95],
+        "address": {
+            "street": "123 Main St",
+            "city": "Boston"
+        }
+    }
+    '''
+    
+    json2 = '''
+    {
+        "name": "John",
+        "age": "30",
+        "scores": [85, 90],
+        "address": {
+            "street": "123 Main St",
+            "state": "MA"
+        }
+    }
+    '''
+    
+    try:
+        missing, additional = compare_jsons(json1, json2)
+        result = format_diff_output(missing, additional)
+        print(result)
+    except Exception as e:
+        print(f"Error: {str(e)}")
