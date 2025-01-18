@@ -1,0 +1,46 @@
+import json
+
+def compare_json(input_json, output_json):
+    """
+    Compares input and output JSONs to check for missing and additional key-value pairs.
+
+    :param input_json: dict, the input JSON
+    :param output_json: dict, the output JSON
+    :return: tuple, (missing_pairs, additional_pairs)
+    """
+    missing_pairs = {}
+    additional_pairs = {}
+
+    # Check for missing key-value pairs in the output JSON
+    for key, value in input_json.items():
+        if key not in output_json or output_json[key] != value:
+            missing_pairs[key] = value
+
+    # Check for additional key-value pairs in the output JSON
+    for key, value in output_json.items():
+        if key not in input_json:
+            additional_pairs[key] = value
+
+    return missing_pairs, additional_pairs
+
+# Example Usage
+if __name__ == "__main__":
+    # Prompt user for Input JSON
+    input_json_str = input("Enter the Input JSON: ")
+    output_json_str = input("Enter the Output JSON: ")
+
+    try:
+        input_json = json.loads(input_json_str)
+        output_json = json.loads(output_json_str)
+
+        # Compare JSONs
+        missing, additional = compare_json(input_json, output_json)
+
+        # Display Results
+        print("\nMissing Key-Value Pairs in Output JSON:")
+        print(json.dumps(missing, indent=4))
+
+        print("\nAdditional Key-Value Pairs in Output JSON:")
+        print(json.dumps(additional, indent=4))
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {e}")
