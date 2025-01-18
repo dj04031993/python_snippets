@@ -1,17 +1,17 @@
 import json
 
-def normalize_quotes(json_obj):
+def add_double_quotes(json_obj):
     """
-    Recursively normalize quotes in JSON keys and values to ensure consistency.
+    Recursively ensure all keys and string values in the JSON object have double quotes.
 
-    :param json_obj: dict or list, the JSON object to normalize
-    :return: dict or list, the normalized JSON object
+    :param json_obj: dict or list, the JSON object to process
+    :return: dict or list, the updated JSON object with double-quoted keys and values
     """
     if isinstance(json_obj, dict):
-        return {str(key).strip('"\''): normalize_quotes(value) if isinstance(value, (dict, list)) else str(value).strip('"\'') for key, value in json_obj.items()}
+        return {f'"{key}"': add_double_quotes(value) if isinstance(value, (dict, list)) else f'"{value}"' if isinstance(value, str) else value for key, value in json_obj.items()}
     elif isinstance(json_obj, list):
-        return [normalize_quotes(item) for item in json_obj]
-    return json_obj
+        return [add_double_quotes(item) for item in json_obj]
+    return f'"{json_obj}"' if isinstance(json_obj, str) else json_obj
 
 def compare_json(input_json, output_json):
     """
@@ -24,18 +24,22 @@ def compare_json(input_json, output_json):
     missing_pairs = {}
     additional_pairs = {}
 
-    # Normalize quotes in both JSONs
-    input_json = normalize_quotes(input_json)
-    output_json = normalize_quotes(output_json)
+    # Add double quotes to all keys and string values
+    input_json = add_double_quotes(input_json)
+    output_json = add_double_quotes(output_json)
+
+    # Convert keys back to normal strings for comparison
+    normalized_input = {key.strip('"'): value for key, value in input_json.items()}
+    normalized_output = {key.strip('"'): value for key, value in output_json.items()}
 
     # Check for missing key-value pairs in the output JSON
-    for key, value in input_json.items():
-        if key not in output_json or output_json[key] != value:
+    for key, value in normalized_input.items():
+        if key not in normalized_output or normalized_output[key] != value:
             missing_pairs[key] = value
 
     # Check for additional key-value pairs in the output JSON
-    for key, value in output_json.items():
-        if key not in input_json:
+    for key, value in normalized_output.items():
+        if key not in normalized_input:
             additional_pairs[key] = value
 
     return missing_pairs, additional_pairs
