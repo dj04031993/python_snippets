@@ -2,20 +2,16 @@ import json
 
 def normalize_quotes(json_obj):
     """
-    Normalizes quotes in JSON keys and values to ensure consistency.
+    Recursively normalize quotes in JSON keys and values to ensure consistency.
 
-    :param json_obj: dict, the JSON object to normalize
-    :return: dict, the normalized JSON object
+    :param json_obj: dict or list, the JSON object to normalize
+    :return: dict or list, the normalized JSON object
     """
-    normalized_obj = {}
-    for key, value in json_obj.items():
-        normalized_key = str(key).strip('"').strip("'")
-        if isinstance(value, str):
-            normalized_value = value.strip('"').strip("'")
-        else:
-            normalized_value = value
-        normalized_obj[normalized_key] = normalized_value
-    return normalized_obj
+    if isinstance(json_obj, dict):
+        return {str(key).strip('"\''): normalize_quotes(value) if isinstance(value, (dict, list)) else str(value).strip('"\'') for key, value in json_obj.items()}
+    elif isinstance(json_obj, list):
+        return [normalize_quotes(item) for item in json_obj]
+    return json_obj
 
 def compare_json(input_json, output_json):
     """
