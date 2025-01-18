@@ -1,92 +1,63 @@
 import json
-from typing import Dict, Any, Tuple, Set
+from typing import Dict, Set, Any
 
-def normalize_json(data: Dict[str, Any]) -> Dict[str, str]:
+def get_all_keys(data: Dict[str, Any], parent_key: str = '', keys: Set[str] = None) -> Set[str]:
     """
-    Recursively convert all values in a dictionary to strings.
-    """
-    normalized = {}
-    for key, value in data.items():
-        if isinstance(value, dict):
-            normalized[key] = normalize_json(value)
-        elif isinstance(value, (list, tuple)):
-            normalized[key] = str([str(item) for item in value])
-        else:
-            normalized[key] = str(value)
-    return normalized
-
-def flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
-    """
-    Flatten a nested dictionary by concatenating nested keys with dots.
-    """
-    items = []
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
-
-def compare_jsons(json1: str, json2: str) -> Tuple[Set[tuple], Set[tuple]]:
-    """
-    Compare two JSON strings and return missing and additional key-value pairs.
+    Recursively collect all keys from a nested dictionary.
     
     Args:
-        json1: First JSON string (base for comparison)
+        data: Dictionary to extract keys from
+        parent_key: Parent key for nested dictionaries
+        keys: Set to store all keys
+    
+    Returns:
+        Set of all keys including nested keys using dot notation
+    """
+    if keys is None:
+        keys = set()
+        
+    for key, value in data.items():
+        current_key = f"{parent_key}.{key}" if parent_key else key
+        keys.add(current_key)
+        
+        if isinstance(value, dict):
+            get_all_keys(value, current_key, keys)
+    
+    return keys
+
+def compare_json_keys(json1: str, json2: str) -> dict:
+    """
+    Compare keys between two JSON strings.
+    
+    Args:
+        json1: First JSON string
         json2: Second JSON string
     
     Returns:
-        Tuple containing:
-        - Set of missing key-value pairs (present in json1 but not in json2)
-        - Set of additional key-value pairs (present in json2 but not in json1)
+        Dictionary containing missing and additional keys
     """
     try:
         # Parse JSON strings
         dict1 = json.loads(json1)
         dict2 = json.loads(json2)
         
-        # Normalize and flatten both dictionaries
-        norm_dict1 = flatten_dict(normalize_json(dict1))
-        norm_dict2 = flatten_dict(normalize_json(dict2))
+        # Get all keys from both JSONs
+        keys1 = get_all_keys(dict1)
+        keys2 = get_all_keys(dict2)
         
-        # Convert to sets of tuples for comparison
-        items1 = set(norm_dict1.items())
-        items2 = set(norm_dict2.items())
+        # Find differences
+        missing_keys = keys1 - keys2
+        additional_keys = keys2 - keys1
         
-        # Find missing and additional items
-        missing = items1 - items2
-        additional = items2 - items1
-        
-        return missing, additional
+        return {
+            'missing_keys': sorted(list(missing_keys)),
+            'additional_keys': sorted(list(additional_keys))
+        }
         
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON format: {str(e)}")
     except Exception as e:
         raise Exception(f"Error comparing JSONs: {str(e)}")
-
-def format_diff_output(missing: Set[tuple], additional: Set[tuple]) -> str:
-    """
-    Format the comparison results into a readable string.
-    """
-    output = []
-    
-    if missing:
-        output.append("Missing key-value pairs (present in first JSON but not in second):")
-        for key, value in sorted(missing):
-            output.append(f"  - {key}: {value}")
-    
-    if additional:
-        if output:
-            output.append("")  # Add blank line between sections
-        output.append("Additional key-value pairs (present in second JSON but not in first):")
-        for key, value in sorted(additional):
-            output.append(f"  + {key}: {value}")
-    
-    if not missing and not additional:
-        output.append("JSONs are identical after normalization.")
-    
-    return "\n".join(output)
 
 # Example usage
 if __name__ == "__main__":
@@ -95,7 +66,6 @@ if __name__ == "__main__":
     {
         "name": "John",
         "age": 30,
-        "scores": [85, 90, 95],
         "address": {
             "street": "123 Main St",
             "city": "Boston"
@@ -106,8 +76,7 @@ if __name__ == "__main__":
     json2 = '''
     {
         "name": "John",
-        "age": "30",
-        "scores": [85, 90],
+        "email": "john@example.com",
         "address": {
             "street": "123 Main St",
             "state": "MA"
@@ -116,8 +85,15 @@ if __name__ == "__main__":
     '''
     
     try:
-        missing, additional = compare_jsons(json1, json2)
-        result = format_diff_output(missing, additional)
-        print(result)
+        result = compare_json_keys(json1, json2)
+        
+        print("Keys present in first JSON but missing in second:")
+        for key in result['missing_keys']:
+            print(f"  - {key}")
+            
+        print("\nKeys present in second JSON but missing in first:")
+        for key in result['additional_keys']:
+            print(f"  + {key}")
+            
     except Exception as e:
         print(f"Error: {str(e)}")
