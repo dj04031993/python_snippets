@@ -1,99 +1,107 @@
-import json
-from typing import Dict, Set, Any
-
-def get_all_keys(data: Dict[str, Any], parent_key: str = '', keys: Set[str] = None) -> Set[str]:
+def compare_json(json1, json2, path=""):
     """
-    Recursively collect all keys from a nested dictionary.
+    Compare two JSON objects and return their differences.
     
     Args:
-        data: Dictionary to extract keys from
-        parent_key: Parent key for nested dictionaries
-        keys: Set to store all keys
-    
+        json1: First JSON object
+        json2: Second JSON object
+        path: Current path in the JSON structure (used for recursive calls)
+        
     Returns:
-        Set of all keys including nested keys using dot notation
+        dict: Dictionary containing added, removed, and modified keys with their values
     """
-    if keys is None:
-        keys = set()
-        
-    for key, value in data.items():
-        current_key = f"{parent_key}.{key}" if parent_key else key
-        keys.add(current_key)
-        
-        if isinstance(value, dict):
-            get_all_keys(value, current_key, keys)
+    differences = {
+        "added": {},
+        "removed": {},
+        "modified": {}
+    }
     
-    return keys
-
-def compare_json_keys(json1: str, json2: str) -> dict:
-    """
-    Compare keys between two JSON strings.
+    # Helper function to format the current path
+    def make_path(path, key):
+        return f"{path}.{key}".lstrip(".")
     
-    Args:
-        json1: First JSON string
-        json2: Second JSON string
+    # Compare key sets
+    json1_keys = set(json1.keys() if isinstance(json1, dict) else range(len(json1)))
+    json2_keys = set(json2.keys() if isinstance(json2, dict) else range(len(json2)))
     
-    Returns:
-        Dictionary containing missing and additional keys
-    """
-    try:
-        # Parse JSON strings
-        dict1 = json.loads(json1)
-        dict2 = json.loads(json2)
+    # Find added keys
+    for key in json2_keys - json1_keys:
+        differences["added"][make_path(path, key)] = json2[key]
+    
+    # Find removed keys
+    for key in json1_keys - json2_keys:
+        differences["removed"][make_path(path, key)] = json1[key]
+    
+    # Check modified values for common keys
+    for key in json1_keys & json2_keys:
+        current_path = make_path(path, key)
         
-        # Get all keys from both JSONs
-        keys1 = get_all_keys(dict1)
-        keys2 = get_all_keys(dict2)
+        if isinstance(json1[key], dict) and isinstance(json2[key], dict):
+            # Recursive call for nested dictionaries
+            nested_diff = compare_json(json1[key], json2[key], current_path)
+            for diff_type, diff_values in nested_diff.items():
+                differences[diff_type].update(diff_values)
         
-        # Find differences
-        missing_keys = keys1 - keys2
-        additional_keys = keys2 - keys1
+        elif isinstance(json1[key], list) and isinstance(json2[key], list):
+            # Compare lists
+            if json1[key] != json2[key]:
+                differences["modified"][current_path] = {
+                    "old_value": json1[key],
+                    "new_value": json2[key]
+                }
         
-        return {
-            'missing_keys': sorted(list(missing_keys)),
-            'additional_keys': sorted(list(additional_keys))
-        }
-        
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON format: {str(e)}")
-    except Exception as e:
-        raise Exception(f"Error comparing JSONs: {str(e)}")
+        elif json1[key] != json2[key]:
+            # Compare primitive values
+            differences["modified"][current_path] = {
+                "old_value": json1[key],
+                "new_value": json2[key]
+            }
+    
+    return differences
 
 # Example usage
 if __name__ == "__main__":
-    # Example JSON strings
-    json1 = '''
-    {
+    # Sample JSON objects
+    json1 = {
         "name": "John",
         "age": 30,
         "address": {
             "street": "123 Main St",
-            "city": "Boston"
-        }
+            "city": "New York"
+        },
+        "hobbies": ["reading", "gaming"]
     }
-    '''
     
-    json2 = '''
-    {
+    json2 = {
         "name": "John",
-        "email": "john@example.com",
+        "age": 31,
         "address": {
-            "street": "123 Main St",
-            "state": "MA"
-        }
+            "street": "456 Oak St",
+            "city": "New York",
+            "zipcode": "10001"
+        },
+        "interests": ["coding", "music"]
     }
-    '''
     
-    try:
-        result = compare_json_keys(json1, json2)
-        
-        print("Keys present in first JSON but missing in second:")
-        for key in result['missing_keys']:
-            print(f"  - {key}")
+    # Compare the JSONs
+    differences = compare_json(json1, json2)
+    
+    # Print results in a readable format
+    print("Changes found between JSON objects:\n")
+    
+    if differences["added"]:
+        print("Added keys:")
+        for key, value in differences["added"].items():
+            print(f"  {key}: {value}")
             
-        print("\nKeys present in second JSON but missing in first:")
-        for key in result['additional_keys']:
-            print(f"  + {key}")
+    if differences["removed"]:
+        print("\nRemoved keys:")
+        for key, value in differences["removed"].items():
+            print(f"  {key}: {value}")
             
-    except Exception as e:
-        print(f"Error: {str(e)}")
+    if differences["modified"]:
+        print("\nModified keys:")
+        for key, value in differences["modified"].items():
+            print(f"  {key}:")
+            print(f"    Old value: {value['old_value']}")
+            print(f"    New value: {value['new_value']}")
