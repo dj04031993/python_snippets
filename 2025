@@ -1,107 +1,69 @@
-def compare_json(json1, json2, path=""):
+import json
+import pandas as pd
+from typing import List, Dict
+
+def json_lines_to_csv(input_file: str, output_file: str, flatten: bool = True) -> None:
     """
-    Compare two JSON objects and return their differences.
+    Convert a text file containing JSON objects (one per line) to a CSV file.
     
     Args:
-        json1: First JSON object
-        json2: Second JSON object
-        path: Current path in the JSON structure (used for recursive calls)
-        
-    Returns:
-        dict: Dictionary containing added, removed, and modified keys with their values
+        input_file (str): Path to the input text file containing JSON lines
+        output_file (str): Path where the CSV file will be saved
+        flatten (bool): If True, flatten nested JSON structures
     """
-    differences = {
-        "added": {},
-        "removed": {},
-        "modified": {}
-    }
+    # Read JSON objects from file
+    json_list: List[Dict] = []
     
-    # Helper function to format the current path
-    def make_path(path, key):
-        return f"{path}.{key}".lstrip(".")
-    
-    # Compare key sets
-    json1_keys = set(json1.keys() if isinstance(json1, dict) else range(len(json1)))
-    json2_keys = set(json2.keys() if isinstance(json2, dict) else range(len(json2)))
-    
-    # Find added keys
-    for key in json2_keys - json1_keys:
-        differences["added"][make_path(path, key)] = json2[key]
-    
-    # Find removed keys
-    for key in json1_keys - json2_keys:
-        differences["removed"][make_path(path, key)] = json1[key]
-    
-    # Check modified values for common keys
-    for key in json1_keys & json2_keys:
-        current_path = make_path(path, key)
+    try:
+        with open(input_file, 'r') as file:
+            for line in file:
+                try:
+                    # Parse each line as a JSON object
+                    json_obj = json.loads(line.strip())
+                    json_list.append(json_obj)
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON line: {line.strip()}")
+                    print(f"Error message: {str(e)}")
+                    continue
         
-        if isinstance(json1[key], dict) and isinstance(json2[key], dict):
-            # Recursive call for nested dictionaries
-            nested_diff = compare_json(json1[key], json2[key], current_path)
-            for diff_type, diff_values in nested_diff.items():
-                differences[diff_type].update(diff_values)
+        if not json_list:
+            raise ValueError("No valid JSON objects found in the file")
         
-        elif isinstance(json1[key], list) and isinstance(json2[key], list):
-            # Compare lists
-            if json1[key] != json2[key]:
-                differences["modified"][current_path] = {
-                    "old_value": json1[key],
-                    "new_value": json2[key]
-                }
+        # Convert list of JSON objects to pandas DataFrame
+        df = pd.DataFrame(json_list)
         
-        elif json1[key] != json2[key]:
-            # Compare primitive values
-            differences["modified"][current_path] = {
-                "old_value": json1[key],
-                "new_value": json2[key]
-            }
-    
-    return differences
+        if flatten:
+            # Flatten nested structures if any exist
+            df = pd.json_normalize(json_list)
+        
+        # Save to CSV
+        df.to_csv(output_file, index=False)
+        print(f"Successfully converted {len(json_list)} JSON objects to CSV")
+        print(f"CSV file saved as: {output_file}")
+        
+        # Display first few rows and data info
+        print("\nFirst few rows of the CSV:")
+        print(df.head())
+        print("\nDataset Info:")
+        print(df.info())
+        
+    except FileNotFoundError:
+        print(f"Error: Input file '{input_file}' not found")
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
 
 # Example usage
 if __name__ == "__main__":
-    # Sample JSON objects
-    json1 = {
-        "name": "John",
-        "age": 30,
-        "address": {
-            "street": "123 Main St",
-            "city": "New York"
-        },
-        "hobbies": ["reading", "gaming"]
-    }
+    # Example of how the input file should look:
+    sample_data = '''
+    {"name": "John", "age": 30, "city": "New York"}
+    {"name": "Alice", "age": 25, "city": "Los Angeles"}
+    {"name": "Bob", "age": 35, "city": "Chicago"}
+    '''.strip()
     
-    json2 = {
-        "name": "John",
-        "age": 31,
-        "address": {
-            "street": "456 Oak St",
-            "city": "New York",
-            "zipcode": "10001"
-        },
-        "interests": ["coding", "music"]
-    }
+    # Create a sample input file
+    with open('sample_input.txt', 'w') as f:
+        f.write(sample_data)
     
-    # Compare the JSONs
-    differences = compare_json(json1, json2)
-    
-    # Print results in a readable format
-    print("Changes found between JSON objects:\n")
-    
-    if differences["added"]:
-        print("Added keys:")
-        for key, value in differences["added"].items():
-            print(f"  {key}: {value}")
-            
-    if differences["removed"]:
-        print("\nRemoved keys:")
-        for key, value in differences["removed"].items():
-            print(f"  {key}: {value}")
-            
-    if differences["modified"]:
-        print("\nModified keys:")
-        for key, value in differences["modified"].items():
-            print(f"  {key}:")
-            print(f"    Old value: {value['old_value']}")
-            print(f"    New value: {value['new_value']}")
+    # Convert to CSV
+    json_lines_to_csv('sample_input.txt', 'output.csv')
