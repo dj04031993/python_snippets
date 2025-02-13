@@ -67,3 +67,83 @@ if __name__ == "__main__":
     
     # Convert to CSV
     json_lines_to_csv('sample_input.txt', 'output.csv')
+
+
+
+
+##################################################################################################################
+
+def calculate_atp(income, debt_ratio):
+    
+    # Input validation
+    if not isinstance(income, (int, float)) or not isinstance(debt_ratio, (int, float)):
+        raise ValueError("Income and debt ratio must be numeric values")
+    
+    # Define the data structure exactly as in the backend
+    atp_matrix = [
+        ["0",      "0", "41", "56", "66", "72", "74", "78", "81", "84", "87", "93"],
+        ["0",      "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
+        ["17001",  "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
+        ["29001",  "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
+        ["40001",  "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
+        ["52001",  "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
+        ["66001",  "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL"],
+        ["82001",  "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL"],
+        ["102001", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL"],
+        ["127001", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL"],
+        ["162001", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS"]
+    ]
+    
+    # Extract debt ratios from first row (converting to float for comparison)
+    debt_ratios = [float(x) for x in atp_matrix[0][1:]]
+    
+    # Extract income brackets from first column (converting to float for comparison)
+    income_brackets = [float(x) for x in [row[0] for row in atp_matrix[1:]]]
+    
+    # Handle edge cases for income
+    if income < 0:
+        income = 0
+    elif income >= 162001:
+        income = 162001
+        
+    # Handle edge cases for debt ratio
+    if debt_ratio < 0:
+        debt_ratio = 0
+    elif debt_ratio > 93:
+        debt_ratio = 93
+    
+    # Find the appropriate income bracket based on ranges
+    income_index = 0
+    for i in range(len(income_brackets)):
+        if i < len(income_brackets) - 1:
+            if income_brackets[i] <= income < income_brackets[i + 1]:
+                income_index = i
+                break
+        else:
+            if income >= income_brackets[i]:
+                income_index = i
+                
+    # Find the appropriate debt ratio bracket (use lower bracket)
+    debt_index = 0
+    for i in range(len(debt_ratios)):
+        if debt_ratio >= debt_ratios[i]:
+            debt_index = i
+            
+    # Return the result from the matrix (add 1 to income_index because of header row)
+    return atp_matrix[income_index + 1][debt_index + 1]
+
+# Example usage:
+if __name__ == "__main__":
+    # Test cases
+    test_cases = [
+        (17000, 55),   # Should return "PASS" (first bracket, between 41-56)
+        (17001, 66),   # Should return "FAIL" (second bracket, at 66)
+        (0, 41),       # Should return "PASS" (first bracket, at 41)
+        (162001, 93),  # Should return "PASS" (last bracket, at 93)
+        (50000, 70),   # Should return "PASS" (matches 52001 bracket, between 66-72)
+        (29000, 56),   # Should return "FAIL" (matches 17001-29000 bracket, at 56)
+    ]
+    
+    for income, debt_ratio in test_cases:
+        result = calculate_atp(income, debt_ratio)
+        print(f"Income: {income}, Debt Ratio: {debt_ratio} -> ATP Result: {result}")
