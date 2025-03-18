@@ -1,80 +1,92 @@
 import mysql.connector
 import json
 
-def extract_matrices_from_mysql():
-    """
-    Connect to MySQL, extract the ATP decision matrices, and store them in variables
-    
-    Returns:
-        tuple: Four matrix variables containing the ATP decision data
-    """
-    # Database connection parameters
-    db_config = {
-        'host': 'your_mysql_host',
-        'user': 'your_username',
-        'password': 'your_password',
-        'database': 'your_database_name'
-    }
+def get_atp_matrix_from_db():
+    # Initialize the matrix list
+    atp_matrix = None
     
     try:
+        # Database connection parameters
+        db_config = {
+            'host': 'localhost',  # Change to your MySQL host
+            'user': 'username',   # Change to your MySQL username
+            'password': 'password', # Change to your MySQL password
+            'database': 'your_database' # Change to your database name
+        }
+        
         # Establish connection to MySQL
         conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
         
-        # Query to fetch the matrices data
-        # Assuming there are 4 matrices stored in a table called 'atp_matrices'
-        # Each matrix has a unique identifier in a column called 'matrix_type'
+        # Query to fetch a single row containing the ATP matrix
+        # Adjust the table name and column names according to your database schema
         query = """
-        SELECT matrix_type, matrix_data 
+        SELECT matrix_data 
         FROM atp_matrices 
-        WHERE matrix_type IN ('matrix1', 'matrix2', 'matrix3', 'matrix4')
+        WHERE matrix_id = 1
+        LIMIT 1
         """
         
+        # Execute the query
         cursor.execute(query)
-        results = cursor.fetchall()
         
-        # Initialize variables for each matrix
-        matrix1 = None
-        matrix2 = None
-        matrix3 = None
-        matrix4 = None
+        # Fetch the single row
+        result = cursor.fetchone()
         
-        # Process the results and assign to variables
-        for row in results:
-            matrix_type = row['matrix_type']
-            matrix_data = json.loads(row['matrix_data'])  # Assuming data is stored as JSON string
-            
-            if matrix_type == 'matrix1':
-                matrix1 = matrix_data
-            elif matrix_type == 'matrix2':
-                matrix2 = matrix_data
-            elif matrix_type == 'matrix3':
-                matrix3 = matrix_data
-            elif matrix_type == 'matrix4':
-                matrix4 = matrix_data
-        
-        print(f"Successfully extracted {len(results)} matrices from the database")
+        if result:
+            # Assuming the matrix is stored as a JSON string in the database
+            # Parse it into a Python list
+            matrix_json = result[0]
+            atp_matrix = json.loads(matrix_json)
+            print("Successfully loaded ATP matrix from database")
+        else:
+            print("No matrix found in the database")
         
         # Close database connection
         cursor.close()
         conn.close()
         
-        return matrix1, matrix2, matrix3, matrix4
-    
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
-        return None, None, None, None
     except Exception as e:
-        print(f"Error extracting matrices: {e}")
-        return None, None, None, None
+        print(f"Error: {e}")
+    
+    return atp_matrix
+
+def verify_matrix(matrix):
+    """
+    Simple verification of the matrix structure
+    """
+    if not matrix:
+        print("Matrix is empty or None")
+        return False
+    
+    try:
+        # Verify the matrix has the expected structure
+        # This will depend on your specific matrix format
+        if isinstance(matrix, list) and len(matrix) > 0:
+            print(f"Matrix is a list with {len(matrix)} rows")
+            
+            # Print first row as sample
+            print("First row sample:")
+            print(matrix[0])
+            
+            return True
+        else:
+            print("Matrix does not have the expected structure")
+            return False
+    except Exception as e:
+        print(f"Error verifying matrix: {e}")
+        return False
 
 if __name__ == "__main__":
-    # Extract the matrices
-    matrix1, matrix2, matrix3, matrix4 = extract_matrices_from_mysql()
+    # Get the matrix from the database
+    atp_matrix = get_atp_matrix_from_db()
     
-    # Print the first matrix to verify data
-    if matrix1:
-        print("\nMatrix 1 preview:")
-        print(json.dumps(matrix1[:2], indent=2))  # Show first two rows
+    # Verify the matrix
+    is_valid = verify_matrix(atp_matrix)
     
-    # Now the matrices are stored in variables and can be used for further processing
+    if is_valid:
+        print("Matrix is valid and ready for use")
+    else:
+        print("Matrix validation failed")
