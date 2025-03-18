@@ -1,0 +1,80 @@
+import mysql.connector
+import json
+
+def extract_matrices_from_mysql():
+    """
+    Connect to MySQL, extract the ATP decision matrices, and store them in variables
+    
+    Returns:
+        tuple: Four matrix variables containing the ATP decision data
+    """
+    # Database connection parameters
+    db_config = {
+        'host': 'your_mysql_host',
+        'user': 'your_username',
+        'password': 'your_password',
+        'database': 'your_database_name'
+    }
+    
+    try:
+        # Establish connection to MySQL
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        
+        # Query to fetch the matrices data
+        # Assuming there are 4 matrices stored in a table called 'atp_matrices'
+        # Each matrix has a unique identifier in a column called 'matrix_type'
+        query = """
+        SELECT matrix_type, matrix_data 
+        FROM atp_matrices 
+        WHERE matrix_type IN ('matrix1', 'matrix2', 'matrix3', 'matrix4')
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        # Initialize variables for each matrix
+        matrix1 = None
+        matrix2 = None
+        matrix3 = None
+        matrix4 = None
+        
+        # Process the results and assign to variables
+        for row in results:
+            matrix_type = row['matrix_type']
+            matrix_data = json.loads(row['matrix_data'])  # Assuming data is stored as JSON string
+            
+            if matrix_type == 'matrix1':
+                matrix1 = matrix_data
+            elif matrix_type == 'matrix2':
+                matrix2 = matrix_data
+            elif matrix_type == 'matrix3':
+                matrix3 = matrix_data
+            elif matrix_type == 'matrix4':
+                matrix4 = matrix_data
+        
+        print(f"Successfully extracted {len(results)} matrices from the database")
+        
+        # Close database connection
+        cursor.close()
+        conn.close()
+        
+        return matrix1, matrix2, matrix3, matrix4
+    
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return None, None, None, None
+    except Exception as e:
+        print(f"Error extracting matrices: {e}")
+        return None, None, None, None
+
+if __name__ == "__main__":
+    # Extract the matrices
+    matrix1, matrix2, matrix3, matrix4 = extract_matrices_from_mysql()
+    
+    # Print the first matrix to verify data
+    if matrix1:
+        print("\nMatrix 1 preview:")
+        print(json.dumps(matrix1[:2], indent=2))  # Show first two rows
+    
+    # Now the matrices are stored in variables and can be used for further processing
