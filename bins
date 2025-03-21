@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 # Load the data
 def analyze_debt_by_income(filepath):
@@ -9,24 +8,36 @@ def analyze_debt_by_income(filepath):
     # Focus only on the two columns we need
     df_subset = df[['income', 'debtRatio']]
     
-    # Create income ranges (you can adjust these as needed)
+    # Create income ranges
     income_bins = [0, 17000, 29000, 50000, 75000, 100000, 150000, 200000, 250000]
-    income_labels = [f'{income_bins[i]}-{income_bins[i+1]}' for i in range(len(income_bins)-1)]
     
-    # Create a new column with the income range for each row
-    df_subset['income_range'] = pd.cut(df_subset['income'], 
-                                      bins=income_bins, 
-                                      labels=income_labels, 
-                                      include_lowest=True,
-                                      right=False)
+    # Create a dictionary to store results
+    results = []
     
-    # Group by income range and calculate max debt ratio
-    result = df_subset.groupby('income_range')['debtRatio'].max().reset_index()
+    # Calculate max debt ratio for each range
+    for i in range(len(income_bins)-1):
+        if i == 0:
+            # For the first range, use "Income upto X" format
+            range_label = f"Income upto {income_bins[i+1]}"
+            mask = (df_subset['income'] >= income_bins[i]) & (df_subset['income'] <= income_bins[i+1])
+        else:
+            # For other ranges, use "Income between X and Y" format
+            range_label = f"Income between {income_bins[i]+1} and {income_bins[i+1]}"
+            mask = (df_subset['income'] > income_bins[i]) & (df_subset['income'] <= income_bins[i+1])
+        
+        # Get max debt ratio for this range
+        if mask.any():
+            max_debt = df_subset.loc[mask, 'debtRatio'].max()
+            max_debt_rounded = round(max_debt, 2)
+            results.append({
+                'Income Range': range_label,
+                'Max Debt Ratio': max_debt_rounded
+            })
     
-    # Round the max debt ratio values for better readability
-    result['debtRatio'] = result['debtRatio'].round(2)
+    # Convert results to DataFrame
+    result_df = pd.DataFrame(results)
     
-    return result
+    return result_df
 
 # Example usage
 if __name__ == "__main__":
@@ -34,8 +45,10 @@ if __name__ == "__main__":
     file_path = "your_data.csv"
     
     result_df = analyze_debt_by_income(file_path)
-    print("Maximum Debt Ratio by Income Range:")
-    print(result_df)
+    
+    # Print results in the exact format requested
+    for _, row in result_df.iterrows():
+        print(f"{row['Income Range']}, max debt ratio is {row['Max Debt Ratio']}")
     
     # Optional: Save results to a new CSV
     # result_df.to_csv("max_debt_ratio_by_income.csv", index=False)
