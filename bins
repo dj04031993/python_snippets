@@ -1,0 +1,41 @@
+import pandas as pd
+import numpy as np
+
+# Load the data
+def analyze_debt_by_income(filepath):
+    # Read the CSV file
+    df = pd.read_csv(filepath)
+    
+    # Focus only on the two columns we need
+    df_subset = df[['income', 'debtRatio']]
+    
+    # Create income ranges (you can adjust these as needed)
+    income_bins = [0, 17000, 29000, 50000, 75000, 100000, 150000, 200000, 250000]
+    income_labels = [f'{income_bins[i]}-{income_bins[i+1]}' for i in range(len(income_bins)-1)]
+    
+    # Create a new column with the income range for each row
+    df_subset['income_range'] = pd.cut(df_subset['income'], 
+                                      bins=income_bins, 
+                                      labels=income_labels, 
+                                      include_lowest=True,
+                                      right=False)
+    
+    # Group by income range and calculate max debt ratio
+    result = df_subset.groupby('income_range')['debtRatio'].max().reset_index()
+    
+    # Round the max debt ratio values for better readability
+    result['debtRatio'] = result['debtRatio'].round(2)
+    
+    return result
+
+# Example usage
+if __name__ == "__main__":
+    # Replace with your actual file path
+    file_path = "your_data.csv"
+    
+    result_df = analyze_debt_by_income(file_path)
+    print("Maximum Debt Ratio by Income Range:")
+    print(result_df)
+    
+    # Optional: Save results to a new CSV
+    # result_df.to_csv("max_debt_ratio_by_income.csv", index=False)
