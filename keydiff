@@ -1,0 +1,106 @@
+import json
+from prettytable import PrettyTable
+
+def get_json_input(prompt):
+    """
+    Get JSON input from user and validate it.
+    """
+    while True:
+        try:
+            user_input = input(prompt)
+            json_data = json.loads(user_input)
+            return json_data
+        except json.JSONDecodeError:
+            print("Invalid JSON format. Please try again.")
+
+def extract_keys(json_data, prefix=""):
+    """
+    Recursively extract all keys from a nested JSON object.
+    Returns a set of keys with their full paths.
+    """
+    keys = set()
+    
+    if isinstance(json_data, dict):
+        for key, value in json_data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            keys.add(full_key)
+            
+            # If value is a dict or list, recursively extract keys
+            if isinstance(value, (dict, list)):
+                keys.update(extract_keys(value, full_key))
+    
+    elif isinstance(json_data, list):
+        # For lists, process each item
+        for i, item in enumerate(json_data):
+            if isinstance(item, (dict, list)):
+                keys.update(extract_keys(item, f"{prefix}[{i}]"))
+    
+    return keys
+
+def compare_json_keys(json1, json2):
+    """
+    Compare keys between two JSON objects and return differences.
+    """
+    keys1 = extract_keys(json1)
+    keys2 = extract_keys(json2)
+    
+    # Keys in JSON 2 but missing in JSON 1
+    missing_in_json1 = keys2 - keys1
+    
+    # Keys in JSON 1 but missing in JSON 2
+    missing_in_json2 = keys1 - keys2
+    
+    return missing_in_json1, missing_in_json2
+
+def display_results(missing_in_json1, missing_in_json2):
+    """
+    Display missing keys in a pretty table format.
+    """
+    # Create and configure the tables
+    table1 = PrettyTable()
+    table1.field_names = ["Keys in JSON 2 but Missing in JSON 1"]
+    table1.align["Keys in JSON 2 but Missing in JSON 1"] = "l"
+    
+    table2 = PrettyTable()
+    table2.field_names = ["Keys in JSON 1 but Missing in JSON 2"]
+    table2.align["Keys in JSON 1 but Missing in JSON 2"] = "l"
+    
+    # Add rows to tables
+    for key in sorted(missing_in_json1):
+        table1.add_row([key])
+    
+    for key in sorted(missing_in_json2):
+        table2.add_row([key])
+    
+    # Print results
+    print("\nComparison Results:")
+    
+    if not missing_in_json1:
+        print("\nAll keys in JSON 2 are present in JSON 1")
+    else:
+        print("\nKeys in JSON 2 but missing in JSON 1:")
+        print(table1)
+    
+    if not missing_in_json2:
+        print("\nAll keys in JSON 1 are present in JSON 2")
+    else:
+        print("\nKeys in JSON 1 but missing in JSON 2:")
+        print(table2)
+
+def main():
+    print("JSON Key Comparator")
+    print("===================")
+    print("This script compares keys between two JSON objects and identifies missing keys.")
+    
+    # Get input from user
+    json1 = get_json_input("\nPlease enter JSON 1: ")
+    json2 = get_json_input("Please enter JSON 2: ")
+    
+    # Compare keys
+    missing_in_json1, missing_in_json2 = compare_json_keys(json1, json2)
+    
+    # Display results
+    display_results(missing_in_json1, missing_in_json2)
+
+if __name__ == "__main__":
+    main()
