@@ -1,149 +1,43 @@
-import json
 import pandas as pd
-from typing import List, Dict
+import re
 
-def json_lines_to_csv(input_file: str, output_file: str, flatten: bool = True) -> None:
-    """
-    Convert a text file containing JSON objects (one per line) to a CSV file.
-    
-    Args:
-        input_file (str): Path to the input text file containing JSON lines
-        output_file (str): Path where the CSV file will be saved
-        flatten (bool): If True, flatten nested JSON structures
-    """
-    # Read JSON objects from file
-    json_list: List[Dict] = []
-    
-    try:
-        with open(input_file, 'r') as file:
-            for line in file:
-                try:
-                    # Parse each line as a JSON object
-                    json_obj = json.loads(line.strip())
-                    json_list.append(json_obj)
-                except json.JSONDecodeError as e:
-                    print(f"Error parsing JSON line: {line.strip()}")
-                    print(f"Error message: {str(e)}")
-                    continue
-        
-        if not json_list:
-            raise ValueError("No valid JSON objects found in the file")
-        
-        # Convert list of JSON objects to pandas DataFrame
-        df = pd.DataFrame(json_list)
-        
-        if flatten:
-            # Flatten nested structures if any exist
-            df = pd.json_normalize(json_list)
-        
-        # Save to CSV
-        df.to_csv(output_file, index=False)
-        print(f"Successfully converted {len(json_list)} JSON objects to CSV")
-        print(f"CSV file saved as: {output_file}")
-        
-        # Display first few rows and data info
-        print("\nFirst few rows of the CSV:")
-        print(df.head())
-        print("\nDataset Info:")
-        print(df.info())
-        
-    except FileNotFoundError:
-        print(f"Error: Input file '{input_file}' not found")
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
+# Assuming your DataFrame is named 'df'
+# 1) Extract unique client groups
+client_list = df['client_group'].unique().tolist()
 
-# Example usage
-if __name__ == "__main__":
-    # Example of how the input file should look:
-    sample_data = '''
-    {"name": "John", "age": 30, "city": "New York"}
-    {"name": "Alice", "age": 25, "city": "Los Angeles"}
-    {"name": "Bob", "age": 35, "city": "Chicago"}
-    '''.strip()
-    
-    # Create a sample input file
-    with open('sample_input.txt', 'w') as f:
-        f.write(sample_data)
-    
-    # Convert to CSV
-    json_lines_to_csv('sample_input.txt', 'output.csv')
+# Create a Pandas Excel writer
+excel_writer = pd.ExcelWriter('client_combinations.xlsx', engine='xlsxwriter')
 
+# 2 & 3) For each client in the list, get combinations and save to worksheet
+print("Client Details:")
+print("-" * 50)
 
+for client in client_list:
+    # Filter DataFrame for current client
+    client_df = df[df['client_group'] == client]
+    
+    # Get the combinations of the specified columns
+    client_combinations = client_df[['CLIENT_NUMBER', 'SYS_NUM', 'PRIN_NUM', 'AGENT_NUMBER']].drop_duplicates()
+    
+    # Count number of unique combinations
+    num_combinations = len(client_combinations)
+    
+    # Clean the client name for Excel worksheet name
+    # Excel worksheet names limited to 31 chars and can't contain: \ / * ? [ ] : 
+    sheet_name = str(client)[:31]  # Limit to 31 chars
+    
+    # Replace invalid characters with underscore
+    sheet_name = re.sub(r'[\\/\*\?\[\]\:]', '_', sheet_name)
+    
+    # Write to Excel
+    client_combinations.to_excel(excel_writer, sheet_name=sheet_name, index=False)
+    
+    # Print client info with row count
+    print(f"Client: {client}")
+    print(f"Number of unique combinations: {num_combinations}")
+    print("-" * 50)
 
+# Save the Excel file
+excel_writer.close()
 
-##################################################################################################################
-
-def calculate_atp(income, debt_ratio):
-    
-    # Input validation
-    if not isinstance(income, (int, float)) or not isinstance(debt_ratio, (int, float)):
-        raise ValueError("Income and debt ratio must be numeric values")
-    
-    # Define the data structure exactly as in the backend
-    atp_matrix = [
-        ["0",      "0", "41", "56", "66", "72", "74", "78", "81", "84", "87", "93"],
-        ["0",      "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
-        ["17001",  "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
-        ["29001",  "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
-        ["40001",  "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
-        ["52001",  "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL"],
-        ["66001",  "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL", "FAIL"],
-        ["82001",  "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL", "FAIL"],
-        ["102001", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL", "FAIL"],
-        ["127001", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS", "FAIL"],
-        ["162001", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "FAIL", "PASS", "FAIL", "PASS"]
-    ]
-    
-    # Extract debt ratios from first row (converting to float for comparison)
-    debt_ratios = [float(x) for x in atp_matrix[0][1:]]
-    
-    # Extract income brackets from first column (converting to float for comparison)
-    income_brackets = [float(x) for x in [row[0] for row in atp_matrix[1:]]]
-    
-    # Handle edge cases for income
-    if income < 0:
-        income = 0
-    elif income >= 162001:
-        income = 162001
-        
-    # Handle edge cases for debt ratio
-    if debt_ratio < 0:
-        debt_ratio = 0
-    elif debt_ratio > 93:
-        debt_ratio = 93
-    
-    # Find the appropriate income bracket based on ranges
-    income_index = 0
-    for i in range(len(income_brackets)):
-        if i < len(income_brackets) - 1:
-            if income_brackets[i] <= income < income_brackets[i + 1]:
-                income_index = i
-                break
-        else:
-            if income >= income_brackets[i]:
-                income_index = i
-                
-    # Find the appropriate debt ratio bracket (use lower bracket)
-    debt_index = 0
-    for i in range(len(debt_ratios)):
-        if debt_ratio >= debt_ratios[i]:
-            debt_index = i
-            
-    # Return the result from the matrix (add 1 to income_index because of header row)
-    return atp_matrix[income_index + 1][debt_index + 1]
-
-# Example usage:
-if __name__ == "__main__":
-    # Test cases
-    test_cases = [
-        (17000, 55),   # Should return "PASS" (first bracket, between 41-56)
-        (17001, 66),   # Should return "FAIL" (second bracket, at 66)
-        (0, 41),       # Should return "PASS" (first bracket, at 41)
-        (162001, 93),  # Should return "PASS" (last bracket, at 93)
-        (50000, 70),   # Should return "PASS" (matches 52001 bracket, between 66-72)
-        (29000, 56),   # Should return "FAIL" (matches 17001-29000 bracket, at 56)
-    ]
-    
-    for income, debt_ratio in test_cases:
-        result = calculate_atp(income, debt_ratio)
-        print(f"Income: {income}, Debt Ratio: {debt_ratio} -> ATP Result: {result}")
+print(f"Excel file created with {len(client_list)} worksheets, one for each client group")
