@@ -1,1 +1,35 @@
 
+import pandas as pd
+
+# Let's say you have two DataFrames df1 and df2
+# And a list of values to check
+values_to_check = ['a', 'c', 'e', 'g']
+
+# Define the column to compare
+column_name = 'your_column_name'
+
+# Create a result DataFrame to store the comparison
+result_data = []
+
+# Iterate through the list and compare counts
+for value in values_to_check:
+    # Count occurrences in each DataFrame
+    count_df1 = df1[df1[column_name] == value].shape[0]
+    count_df2 = df2[df2[column_name] == value].shape[0]
+    
+    # Calculate difference
+    difference = count_df1 - count_df2
+    
+    # Store results
+    result_data.append({
+        'Value': value,
+        'Count_in_DF1': count_df1,
+        'Count_in_DF2': count_df2,
+        'Difference': difference
+    })
+
+# Convert to DataFrame for easy viewing
+comparison_df = pd.DataFrame(result_data)
+
+# Display the results
+print(comparison_df)
