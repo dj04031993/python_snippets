@@ -1,1 +1,53 @@
+import pandas as pd
 
+# Function to check for missing elements
+def find_missing_elements(prod_df, qa_df):
+    # Extract the combination from QA dataframe and store in list1
+    list1 = []
+    for _, row in qa_df.iterrows():
+        combo = (row['SYS NUM'], row['PRIN NUM'], row['AGENT_NUMBER'])
+        list1.append(combo)
+    
+    # Extract the combination from production dataframe and store in list2
+    list2 = []
+    missing_elements = []
+    
+    for _, row in prod_df.iterrows():
+        combo = (row['cu_system'], row['cu_prin'], row['cu_agent'])
+        list2.append(combo)
+        
+        # Check if this combination exists in list1
+        if combo not in list1:
+            missing_elements.append({
+                'cu_system': row['cu_system'],
+                'cu_prin': row['cu_prin'],
+                'cu_agent': row['cu_agent'],
+                'client_group': row['client group'],
+                'sub_client_name': row['sub_client_name']
+            })
+    
+    # Summary information
+    total_prod_combos = len(list2)
+    unique_prod_combos = len(set(list2))
+    missing_count = len(missing_elements)
+    
+    print(f"Total combinations in production dataframe: {total_prod_combos}")
+    print(f"Unique combinations in production dataframe: {unique_prod_combos}")
+    print(f"Missing combinations (not in QA dataframe): {missing_count}")
+    
+    # Create a dataframe of missing elements for better visualization
+    if missing_elements:
+        missing_df = pd.DataFrame(missing_elements)
+        return missing_df
+    else:
+        return pd.DataFrame()  # Return empty dataframe if nothing is missing
+
+# Usage
+missing_df = find_missing_elements(prod_df, qa_df)
+
+# Display the missing elements
+if not missing_df.empty:
+    print("\nMissing elements (combinations in prod but not in qa):")
+    print(missing_df)
+else:
+    print("\nAll production combinations exist in the QA dataframe.")
