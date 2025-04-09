@@ -1,0 +1,139 @@
+@ECHO OFF
+:: Kafka Smoke Test Automation
+
+:: Set Kafka configurations
+SET klocation=D:\kafka_2.11-1.0.0
+SET producer_topic=test_producer
+SET consumer_topic=test_producer
+SET brokerList=brokerlist
+SET configlocation=D:\kafka_2.11-1.0.0\config\client-ssl.properties
+SET timeout_ms=60000
+SET expected_message_count=5
+SET temp_output_file=%TEMP%\kafka_output.txt
+SET temp_input_file=%TEMP%\kafka_input.json
+
+ECHO === Starting Kafka Smoke Test ===
+ECHO Producer Topic: %producer_topic%
+ECHO Consumer Topic: %consumer_topic%
+
+:: Create JSON data file on the fly
+ECHO Creating temporary JSON data file...
+(
+ECHO {"id": 1, "name": "test_item_1", "status": "active"}
+ECHO {"id": 2, "name": "test_item_2", "status": "inactive"}
+ECHO {"id": 3, "name": "test_item_3", "status": "pending"}
+ECHO {"id": 4, "name": "test_item_4", "status": "active"}
+ECHO {"id": 5, "name": "test_item_5", "status": "completed"}
+) > %temp_input_file%
+
+:: Publish JSON data to Kafka
+ECHO.
+ECHO === Publishing messages to Kafka ===
+type %temp_input_file% | call %klocation%\bin\windows\kafka-console-producer.bat --broker-list %brokerList% --topic %producer_topic% --request-timeout-ms %timeout_ms%
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO ERROR: Failed to publish messages to Kafka
+    DEL %temp_input_file%
+    EXIT /B 1
+)
+ECHO === Messages published successfully ===
+
+:: Clean up temporary input file
+DEL %temp_input_file%
+
+:: Wait for processing
+ECHO.
+ECHO === Waiting for message processing (5 seconds) ===
+ping -n 6 127.0.0.1 > nul
+
+:: Consume messages from Kafka
+ECHO.
+ECHO === Consuming messages from Kafka ===
+ECHO This will timeout after %timeout_ms% ms
+call %klocation%\bin\windows\kafka-console-consumer.bat --bootstrap-server %brokerList% --topic %consumer_topic% --from-beginning --timeout-ms %timeout_ms% > %temp_output_file%
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO ERROR: Failed to consume messages from Kafka
+    EXIT /B 1
+)
+ECHO === Messages consumed successfully ===
+
+:: Count lines in output file (approximate message count)
+FOR /F "tokens=*" %%A IN ('type %temp_output_file% ^| find /c /v ""') DO SET message_count=%%A
+ECHO.
+ECHO === Validation Results ===
+ECHO Expected messages: %expected_message_count%
+ECHO Actual messages: %message_count%
+
+:: Perform assertions
+SET test_passed=true
+
+:: Assertion 1: Check message count
+IF %message_count% NEQ %expected_message_count% (
+    ECHO [FAIL] Message count does not match expected count
+    SET test_passed=false
+) ELSE (
+    ECHO [PASS] Message count matches expected count
+)
+
+:: Assertion 2: Check for multiple specific strings in messages
+ECHO Checking for expected content in messages:
+
+:: Define the strings to check for
+SET string1="test_item_1"
+SET string2="inactive"
+SET string3="pending"
+SET string4="completed"
+
+:: Check each string
+findstr /C:%string1% %temp_output_file% > nul
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO [FAIL] Expected content %string1% not found in messages
+    SET test_passed=false
+) ELSE (
+    ECHO [PASS] Expected content %string1% found in messages
+)
+
+findstr /C:%string2% %temp_output_file% > nul
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO [FAIL] Expected content %string2% not found in messages
+    SET test_passed=false
+) ELSE (
+    ECHO [PASS] Expected content %string2% found in messages
+)
+
+findstr /C:%string3% %temp_output_file% > nul
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO [FAIL] Expected content %string3% not found in messages
+    SET test_passed=false
+) ELSE (
+    ECHO [PASS] Expected content %string3% found in messages
+)
+
+findstr /C:%string4% %temp_output_file% > nul
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO [FAIL] Expected content %string4% not found in messages
+    SET test_passed=false
+) ELSE (
+    ECHO [PASS] Expected content %string4% found in messages
+)
+
+:: Assertion 3: Check if any error messages in output
+findstr /C:"error" /I %temp_output_file% > nul
+IF %ERRORLEVEL% EQU 0 (
+    ECHO [FAIL] Error messages found in output
+    SET test_passed=false
+) ELSE (
+    ECHO [PASS] No error messages found in output
+)
+
+:: Clean up temporary output file
+DEL %temp_output_file%
+
+:: Report overall test result
+ECHO.
+IF "%test_passed%"=="true" (
+    ECHO === SMOKE TEST PASSED ===
+    EXIT /B 0
+) ELSE (
+    ECHO === SMOKE TEST FAILED ===
+    EXIT /B 1
+)
