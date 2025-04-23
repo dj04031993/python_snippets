@@ -1,0 +1,205 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: Kafka Automation Workflow Script
+:: This script automates:
+:: 1. Publishing JSON messages to a Kafka topic
+:: 2. Consuming messages from another Kafka topic and saving to temp file
+:: 3. Performing assertions on the consumed messages
+
+:: Configuration variables
+set KAFKA_BIN=C:\path\to\kafka\bin
+set SOURCE_TOPIC=source-topic
+set TARGET_TOPIC=target-topic
+set BOOTSTRAP_SERVER=localhost:9092
+set TEMP_FILE=%TEMP%\kafka_messages_%RANDOM%.json
+set MAX_RETRIES=3
+set TIMEOUT_SECONDS=20
+set LOG_FILE=kafka_automation.log
+
+:: Create log function
+:log
+    echo [%date% %time%] %* >> %LOG_FILE%
+    echo [%date% %time%] %*
+    goto :eof
+
+:: Initialize log file
+echo. > %LOG_FILE%
+call :log "Starting Kafka automation workflow"
+
+:: Function to publish messages to Kafka
+:publish_messages
+    call :log "Publishing messages to topic %SOURCE_TOPIC%"
+    
+    :: Replace this JSON with your actual messages or read from a file
+    (
+        echo {"id": "msg001", "type": "test", "value": 100, "status": "pending"}
+        echo {"id": "msg002", "type": "test", "value": 200, "status": "complete"}
+        echo {"id": "msg003", "type": "test", "value": 300, "status": "pending"}
+    ) > %TEMP%\messages_to_publish.json
+    
+    :: Publish using Kafka console producer
+    for /f "tokens=*" %%a in (%TEMP%\messages_to_publish.json) do (
+        call :log "Publishing: %%a"
+        echo %%a | "%KAFKA_BIN%\windows\kafka-console-producer.bat" --broker-list %BOOTSTRAP_SERVER% --topic %SOURCE_TOPIC%
+        
+        if !ERRORLEVEL! neq 0 (
+            call :log "ERROR: Failed to publish message. Error code: !ERRORLEVEL!"
+            call :handle_error "publish" %%a
+        )
+    )
+    
+    del %TEMP%\messages_to_publish.json
+    goto :eof
+
+:: Function to consume messages from Kafka
+:consume_messages
+    call :log "Consuming messages from topic %TARGET_TOPIC% with timeout of %TIMEOUT_SECONDS% seconds"
+    
+    :: Create timeout mechanism using timeout command
+    start /b cmd /c ""%KAFKA_BIN%\windows\kafka-console-consumer.bat" --bootstrap-server %BOOTSTRAP_SERVER% --topic %TARGET_TOPIC% --from-beginning --timeout-ms %TIMEOUT_SECONDS%000 > "%TEMP%\kafka_output.tmp" 2>&1"
+    
+    :: Wait for the timeout duration
+    timeout /t %TIMEOUT_SECONDS% /nobreak > nul
+    
+    :: Check if we have received any messages
+    set /a retry_count=0
+    :retry_consume
+        if exist "%TEMP%\kafka_output.tmp" (
+            if %retry_count% lss %MAX_RETRIES% (
+                for %%I in ("%TEMP%\kafka_output.tmp") do if %%~zI equ 0 (
+                    set /a retry_count+=1
+                    call :log "No messages received yet. Retry attempt !retry_count! of %MAX_RETRIES%"
+                    timeout /t 5 /nobreak > nul
+                    goto :retry_consume
+                )
+            )
+            
+            move /y "%TEMP%\kafka_output.tmp" "%TEMP_FILE%" > nul
+            call :log "Consumed messages saved to %TEMP_FILE%"
+        ) else (
+            call :log "ERROR: Failed to create output file"
+            exit /b 1
+        )
+    goto :eof
+
+:: Function to perform assertions on messages
+:perform_assertions
+    call :log "Performing assertions on consumed messages"
+    
+    if not exist "%TEMP_FILE%" (
+        call :log "ERROR: Message file not found"
+        exit /b 1
+    )
+    
+    :: Check if file is empty
+    for %%I in (%TEMP_FILE%) do if %%~zI equ 0 (
+        call :log "ERROR: No messages found in consumed file"
+        exit /b 1
+    )
+    
+    :: Count total messages
+    set /a msg_count=0
+    for /f "tokens=*" %%a in (%TEMP_FILE%) do set /a msg_count+=1
+    call :log "Found %msg_count% messages to validate"
+    
+    :: Perform JSON key-value assertions
+    :: This is a simplified approach - you'll replace with your specific assertions
+    
+    set /a assertion_failures=0
+    
+    :: Check for specific values
+    findstr /c:"\"status\":\"pending\"" "%TEMP_FILE%" > nul
+    if !ERRORLEVEL! neq 0 (
+        call :log "ASSERTION FAILED: No messages with status 'pending' found"
+        set /a assertion_failures+=1
+    ) else (
+        call :log "ASSERTION PASSED: Found messages with status 'pending'"
+    )
+    
+    findstr /c:"\"type\":\"test\"" "%TEMP_FILE%" > nul
+    if !ERRORLEVEL! neq 0 (
+        call :log "ASSERTION FAILED: No messages with type 'test' found"
+        set /a assertion_failures+=1
+    ) else (
+        call :log "ASSERTION PASSED: Found messages with type 'test'"
+    )
+    
+    :: Check for specific IDs
+    findstr /c:"\"id\":\"msg001\"" "%TEMP_FILE%" > nul
+    if !ERRORLEVEL! neq 0 (
+        call :log "ASSERTION FAILED: Message with ID 'msg001' not found"
+        set /a assertion_failures+=1
+    ) else (
+        call :log "ASSERTION PASSED: Found message with ID 'msg001'"
+    )
+    
+    :: Report assertion results
+    if %assertion_failures% gtr 0 (
+        call :log "ASSERTIONS SUMMARY: %assertion_failures% assertion(s) failed"
+        exit /b 1
+    ) else (
+        call :log "ASSERTIONS SUMMARY: All assertions passed"
+    )
+    
+    goto :eof
+
+:: Function to handle errors and implement retries
+:handle_error
+    set error_operation=%~1
+    set error_data=%~2
+    set /a current_retry=0
+    
+    :retry_operation
+    if %current_retry% lss %MAX_RETRIES% (
+        set /a current_retry+=1
+        call :log "Retrying %error_operation% operation (attempt %current_retry% of %MAX_RETRIES%)"
+        
+        if "%error_operation%"=="publish" (
+            echo %error_data% | "%KAFKA_BIN%\windows\kafka-console-producer.bat" --broker-list %BOOTSTRAP_SERVER% --topic %SOURCE_TOPIC%
+            if !ERRORLEVEL! equ 0 (
+                call :log "Retry successful"
+                goto :eof
+            )
+        )
+        
+        timeout /t 2 /nobreak > nul
+        goto :retry_operation
+    ) else (
+        call :log "ERROR: Maximum retries reached for %error_operation% operation"
+    )
+    goto :eof
+
+:: Main execution flow
+call :log "=== Starting workflow execution ==="
+
+:: Step 1: Publish messages
+call :publish_messages
+if %ERRORLEVEL% neq 0 (
+    call :log "ERROR: Message publishing failed"
+    exit /b 1
+)
+
+:: Step 2: Consume messages
+call :consume_messages
+if %ERRORLEVEL% neq 0 (
+    call :log "ERROR: Message consumption failed"
+    exit /b 1
+)
+
+:: Step 3: Perform assertions
+call :perform_assertions
+if %ERRORLEVEL% neq 0 (
+    call :log "ERROR: Assertions failed"
+    exit /b 1
+)
+
+call :log "=== Workflow completed successfully ==="
+
+:: Cleanup
+if exist "%TEMP_FILE%" (
+    call :log "Cleaning up temporary files"
+    del "%TEMP_FILE%"
+)
+
+endlocal
