@@ -1,1 +1,102 @@
+import json
+from typing import List, Dict, Set, Any
 
+def analyze_json_keys(json_strings: List[str]) -> Dict:
+    """
+    Analyze JSON key structures and provide detailed information.
+    
+    Args:
+        json_strings (List[str]): List of JSON strings to analyze
+    
+    Returns:
+        Dict containing analysis results
+    """
+    # Parse JSON strings
+    parsed_jsons = []
+    for js in json_strings:
+        try:
+            parsed_jsons.append(json.loads(js))
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON: {e}")
+            return {}
+
+    # Count keys in each JSON
+    key_counts = [len(js.keys()) for js in parsed_jsons]
+    
+    # Get all unique keys across all JSONs
+    all_keys = set().union(*[set(js.keys()) for js in parsed_jsons])
+    
+    # Get keys for each JSON
+    json_keys = [set(js.keys()) for js in parsed_jsons]
+    
+    # Find common keys
+    common_keys = set.intersection(*json_keys) if json_keys else set()
+    
+    # Find unique keys for each JSON
+    unique_keys_per_json = [keys - common_keys for keys in json_keys]
+    
+    # Construct a JSON with only common keys
+    common_key_jsons = []
+    for js in parsed_jsons:
+        common_key_json = {k: js[k] for k in common_keys if k in js}
+        common_key_jsons.append(common_key_json)
+    
+    # Construct a full JSON message using the first sample
+    full_json_message = construct_full_json(parsed_jsons[0], all_keys)
+    
+    return {
+        "key_counts": key_counts,
+        "all_keys": list(all_keys),
+        "common_keys": list(common_keys),
+        "unique_keys_per_json": [list(keys) for keys in unique_keys_per_json],
+        "common_key_jsons": common_key_jsons,
+        "full_json_message": full_json_message
+    }
+
+def construct_full_json(base_json: Dict[str, Any], all_keys: Set[str]) -> str:
+    """
+    Construct a full JSON message string using the base JSON and filling missing keys.
+    
+    Args:
+        base_json (Dict): The base JSON to use as a template
+        all_keys (Set): Set of all unique keys across all JSONs
+    
+    Returns:
+        Str of JSON with all keys, using base_json values where available
+    """
+    full_json = {}
+    for key in all_keys:
+        if key in base_json:
+            full_json[key] = base_json[key]
+        else:
+            # You can customize the default value strategy here
+            full_json[key] = None  # Default to None, but you can change this
+    
+    return json.dumps(full_json)
+
+def main():
+    # Example usage (you'll replace these with your actual JSON strings)
+    json_strings = [
+        '{"name": "John", "age": 30, "city": "New York"}',
+        '{"name": "Jane", "age": 25, "job": "Engineer"}',
+        '{"name": "Bob", "city": "San Francisco", "hobby": "Reading"}'
+    ]
+    
+    # Analyze the JSONs
+    result = analyze_json_keys(json_strings)
+    
+    # Print the results
+    print("Key Counts in Each JSON:", result['key_counts'])
+    print("\nAll Unique Keys:", result['all_keys'])
+    print("\nCommon Keys:", result['common_keys'])
+    print("\nUnique Keys per JSON:", result['unique_keys_per_json'])
+    
+    print("\nCommon Key JSONs:")
+    for js in result['common_key_jsons']:
+        print(json.dumps(js, indent=2))
+    
+    print("\nFull JSON Message (using first sample):")
+    print(result['full_json_message'])
+
+if __name__ == "__main__":
+    main()
