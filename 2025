@@ -1,1 +1,95 @@
+import json
+from pprint import pprint
+from typing import Dict, List, Any, Set
 
+def analyze_json_messages(file_path: str):
+    """
+    Analyze JSON messages from a text file to find common keys and unique keys.
+    
+    Args:
+        file_path: Path to the text file containing JSON messages
+    """
+    # Step 1: Load the 12 JSON messages from the file
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read()
+            
+            # Split the content into separate JSON objects
+            # Assuming each JSON object is on a separate line
+            json_strings = [line.strip() for line in content.strip().split('\n') if line.strip()]
+            
+            # Parse each JSON string
+            messages = []
+            for json_str in json_strings:
+                try:
+                    messages.append(json.loads(json_str))
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON string: {e}")
+                    print(f"Problematic JSON string: {json_str[:100]}...")
+            
+            # Ensure we have exactly 12 messages
+            if len(messages) != 12:
+                print(f"Warning: Expected 12 JSON messages, but found {len(messages)}")
+                
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+        return
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return
+    
+    # Store the 12 JSON messages in separate variables
+    message_vars = {}
+    for i, msg in enumerate(messages, 1):
+        var_name = f"message_{i}"
+        message_vars[var_name] = msg
+        
+    # Step 2: Count and print the number of keys in each message
+    print("\n=== Number of Keys in Each Message ===")
+    key_counts = {}
+    for var_name, msg in message_vars.items():
+        key_count = len(msg.keys())
+        key_counts[var_name] = key_count
+        print(f"{var_name}: {key_count} keys")
+    
+    # Step 3: Find common keys across all messages
+    all_keys_sets = [set(msg.keys()) for msg in messages]
+    common_keys = set.intersection(*all_keys_sets) if all_keys_sets else set()
+    
+    print(f"\n=== Common Keys Across All Messages ({len(common_keys)}) ===")
+    for key in sorted(common_keys):
+        print(f"- {key}")
+    
+    # Construct output message with common key attributes
+    common_message = {}
+    if messages:  # Check if messages list is not empty
+        # For each common key, use the value from the first message as an example
+        for key in common_keys:
+            common_message[key] = messages[0][key]
+    
+    print("\n=== Output Message with Common Keys ===")
+    pprint(common_message)
+    
+    # Step 4: Find unique (extra) keys in each message
+    print("\n=== Unique Keys in Each Message ===")
+    for var_name, msg in message_vars.items():
+        unique_keys = set(msg.keys()) - common_keys
+        print(f"\n{var_name} ({len(unique_keys)} unique keys):")
+        if unique_keys:
+            for key in sorted(unique_keys):
+                print(f"- {key}")
+        else:
+            print("- No unique keys")
+    
+    return message_vars, common_message
+
+# Usage example
+if __name__ == "__main__":
+    file_path = "json_messages.txt"  # Replace with your file path
+    message_vars, common_message = analyze_json_messages(file_path)
+    
+    # Access individual messages
+    # Example: Print the first message
+    if message_vars and "message_1" in message_vars:
+        print("\n=== Example: First Message ===")
+        pprint(message_vars["message_1"])
