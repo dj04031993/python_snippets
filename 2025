@@ -1,1 +1,2 @@
+START "" /B CMD /C "%CONSUMER% --bootstrap-server %BROKER_LIST% --topic %CONSUME_TOPIC% --consumer.config %CONFIG_FILE% --group test-consumer-group --timeout-ms 10000 --max-messages 20 > %TMP_RESPONSE_FILE% 2>NUL"
 
