@@ -1,27 +1,26 @@
-
-:: ==== BUILD BATCH MESSAGE FILE ====
-ECHO Preparing batch message file...
+:: ==== BUILD REQUEST PAYLOAD ====
+ECHO Preparing request batch...
 > %TMP_REQUEST_FILE% (
-    ECHO 
-    ECHO 
+    ECHO {"currentAccountNbr":"AMAZONCON00000001","clientId":"AMAZONCON","cuSystem":"9342","cuPrin":"1100","cuAgent":"50000","caMob":"60","cuCurNbrDue":"0","cuExtStatusCode":""}
+    ECHO {"currentAccountNbr":"SAMSCONS00000001","clientId":"SAMSCONS","cuSystem":"9277","cuPrin":"2100","cuAgent":"30000","caMob":"122","cuCurNbrDue":"0","cuExtStatusCode":""}
 )
 
-:: ==== START CONSUMER IN BACKGROUND ====
-ECHO Starting consumer in background to listen for new messages...
-START "" /B CMD /C "%CONSUMER% --bootstrap-server %BROKER_LIST% --topic %CONSUME_TOPIC% --consumer.config %CONFIG_FILE% --from-beginning --timeout-ms 10000 --max-messages 20 --offset-reset latest > %TMP_RESPONSE_FILE%"
+:: ==== START CONSUMER FIRST ====
+ECHO Starting Kafka consumer in background...
+START "" /B CMD /C "%CONSUMER% --bootstrap-server %BROKER_LIST% --topic %CONSUME_TOPIC% --consumer.config %CONFIG_FILE% --group test-consumer-group --timeout-ms 10000 --max-messages 20 > %TMP_RESPONSE_FILE%"
 
 :: ==== GIVE CONSUMER TIME TO ATTACH ====
 TIMEOUT /T 2 >NUL
 
-:: ==== SEND MESSAGES ====
+:: ==== PRODUCE MESSAGES ====
 ECHO Sending messages to Kafka topic %PRODUCE_TOPIC%
 CALL "%PRODUCER%" --broker-list %BROKER_LIST% --topic %PRODUCE_TOPIC% --request-timeout-ms 60000 --producer.config %CONFIG_FILE% < %TMP_REQUEST_FILE% >NUL
 
-:: ==== WAIT FOR RESPONSES ====
-ECHO Waiting %WAIT_SECONDS% seconds for consumer to capture messages...
+:: ==== WAIT FOR RESPONSE COLLECTION ====
+ECHO Waiting %WAIT_SECONDS% seconds for responses...
 TIMEOUT /T %WAIT_SECONDS% >NUL
 
-:: ==== DISPLAY RESPONSES ====
+:: ==== SHOW RESPONSES ====
 ECHO -------- Kafka Responses --------
 TYPE %TMP_RESPONSE_FILE%
 
