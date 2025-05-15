@@ -1,2 +1,44 @@
+
+
+:: ==== BUILD REQUEST PAYLOAD ====
+ECHO Preparing batch message file...
+> %TMP_REQUEST_FILE% (
+
+)
+
+:: ==== COUNT MESSAGES TO BE PRODUCED ====
+FOR /F %%A IN ('FIND /C /V "" ^< %TMP_REQUEST_FILE%') DO SET MSG_COUNT_PRODUCED=%%A
+
+:: ==== START CONSUMER FIRST ====
+ECHO Starting consumer in background to listen for new messages...
 START "" /B CMD /C "%CONSUMER% --bootstrap-server %BROKER_LIST% --topic %CONSUME_TOPIC% --consumer.config %CONFIG_FILE% --group test-consumer-group --timeout-ms 10000 --max-messages 20 > %TMP_RESPONSE_FILE% 2>NUL"
 
+:: ==== GIVE CONSUMER TIME TO ATTACH ====
+TIMEOUT /T 2 >NUL
+
+:: ==== SEND MESSAGES ====
+ECHO Sending messages to Kafka topic %PRODUCE_TOPIC%
+CALL "%PRODUCER%" --broker-list %BROKER_LIST% --topic %PRODUCE_TOPIC% --request-timeout-ms 60000 --producer.config %CONFIG_FILE% < %TMP_REQUEST_FILE% >NUL
+
+:: ==== WAIT FOR RESPONSES ====
+ECHO Waiting %WAIT_SECONDS% seconds for responses...
+TIMEOUT /T %WAIT_SECONDS% >NUL
+
+:: ==== COUNT MESSAGES CONSUMED ====
+FOR /F %%A IN ('FIND /C /V "" ^< %TMP_RESPONSE_FILE%') DO SET MSG_COUNT_CONSUMED=%%A
+
+:: ==== DISPLAY STATS ====
+ECHO ----------------------------------------
+ECHO ✅ Messages Produced : %MSG_COUNT_PRODUCED%
+ECHO ✅ Messages Consumed : %MSG_COUNT_CONSUMED%
+ECHO ----------------------------------------
+
+:: ==== OPEN RESPONSE FILE ====
+START NOTEPAD %TMP_RESPONSE_FILE%
+
+:: ==== CLEANUP: Comment this if you want to keep files
+:: DEL %TMP_REQUEST_FILE% 2>NUL
+:: DEL %TMP_RESPONSE_FILE% 2>NUL
+
+PAUSE
+ENDLOCAL
