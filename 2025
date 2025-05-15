@@ -1,25 +1,34 @@
 ECHO.
-ECHO ========= Running Assertions =========
+ECHO ================== Assertion Results ==================
+ECHO | Test String                               ^| Result  |
+ECHO |------------------------------------------^|---------|
 
-SET ASSERT[0]=XYZ123
-SET ASSERT[1]=ABC789
+SET ASSERT[0]=currentAccountNbr:XYZ123
+SET ASSERT[1]=currentAccountNbr:ABC789
 
 SET /A PASS_COUNT=0
 SET /A FAIL_COUNT=0
 
 FOR /L %%I IN (0,1,1) DO (
     CALL SET "LINE=%%ASSERT[%%I]%%"
-    ECHO Checking: !LINE!
+    SETLOCAL ENABLEDELAYEDEXPANSION
+
+    REM Pad string to 40 characters for alignment
+    SET "PADDED_LINE=!LINE!                                        "
+    SET "DISPLAY=!PADDED_LINE:~0,40!"
+
     FINDSTR /C:"!LINE!" %TMP_RESPONSE_FILE% >NUL
     IF !ERRORLEVEL! EQU 0 (
-        ECHO !LINE! PASS
+        ECHO | !DISPLAY! ^| PASS    |
+        ENDLOCAL
         SET /A PASS_COUNT+=1
     ) ELSE (
-        ECHO !LINE! FAIL
+        ECHO | !DISPLAY! ^| FAIL    |
+        ENDLOCAL
         SET /A FAIL_COUNT+=1
     )
 )
 
-ECHO -----------------------------
-ECHO ✅ Total Pass: %PASS_COUNT%
-ECHO ❌ Total Fail: %FAIL_COUNT%
+ECHO =======================================================
+ECHO ✅ Total Pass : %PASS_COUNT%
+ECHO ❌ Total Fail : %FAIL_COUNT%
