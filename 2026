@@ -1,0 +1,485 @@
+import pandas as pd
+import pandera as pa
+from pandera import Column, DataFrameSchema, Check
+from datetime import datetime
+import numpy as np
+
+class CSVValidator:
+    """Flexible CSV validator that can adapt to different data structures"""
+    
+    def __init__(self, csv_file_path):
+        self.csv_file_path = csv_file_path
+        self.df = None
+        self.schema = None
+        self.validation_results = {}
+        
+    def load_csv(self):
+        """Load CSV file and perform initial inspection"""
+        try:
+            print(f"Loading CSV file: {self.csv_file_path}")
+            self.df = pd.read_csv(self.csv_file_path)
+            print(f"✓ Successfully loaded {len(self.df)} rows and {len(self.df.columns)} columns")
+            return True
+        except FileNotFoundError:
+            print(f"❌ Error: File {self.csv_file_path} not found")
+            return False
+        except pd.errors.EmptyDataError:
+            print("❌ Error: CSV file is empty")
+            return False
+        except Exception as e:
+            print(f"❌ Error loading CSV: {e}")
+            return False
+    
+    def inspect_data_structure(self):
+        """Analyze the structure and content of the loaded CSV"""
+        if self.df is None:
+            print("❌ No data loaded. Please load CSV first.")
+            return
+        
+        print("\n" + "="*60)
+        print("DATA STRUCTURE INSPECTION")
+        print("="*60)
+        
+        # Basic info
+        print(f"Shape: {self.df.shape}")
+        print(f"Columns: {list(self.df.columns)}")
+        
+        # Data types
+        print("\nData Types:")
+        for col, dtype in self.df.dtypes.items():
+            print(f"  {col}: {dtype}")
+        
+        # Missing values
+        missing_data = self.df.isnull().sum()
+        if missing_data.any():
+            print("\nMissing Values:")
+            for col, count in missing_data[missing_data > 0].items():
+                percentage = (count / len(self.df)) * 100
+                print(f"  {col}: {count} ({percentage:.1f}%)")
+        else:
+            print("\n✓ No missing values found")
+        
+        # Sample data
+        print("\nFirst 5 rows:")
+        print(self.df.head())
+        
+        print("\nLast 5 rows:")
+        print(self.df.tail())
+        
+        # Unique values for each column (limited to first 10)
+        print("\nUnique Values (first 10 per column):")
+        for col in self.df.columns:
+            unique_vals = self.df[col].unique()
+            if len(unique_vals) <= 10:
+                print(f"  {col}: {list(unique_vals)}")
+            else:
+                print(f"  {col}: {list(unique_vals[:10])} ... ({len(unique_vals)} total unique values)")
+    
+    def create_adaptive_schema(self):
+        """Create a flexible schema based on detected data patterns"""
+        if self.df is None:
+            print("❌ No data loaded. Please load CSV first.")
+            return None
+        
+        print("\n" + "="*60)
+        print("CREATING ADAPTIVE VALIDATION SCHEMA")
+        print("="*60)
+        
+        schema_columns = {}
+        
+        for col in self.df.columns:
+            column_data = self.df[col].dropna()  # Remove NaN for analysis
+            
+            if len(column_data) == 0:
+                # All values are NaN
+                schema_columns[col] = Column(object, nullable=True)
+                print(f"  {col}: All null values - allowing any type")
+                continue
+            
+            # Detect data type and create appropriate validation
+            if pd.api.types.is_numeric_dtype(column_data):
+                # Numeric column
+                min_val = column_data.min()
+                max_val = column_data.max()
+                
+                if column_data.dtype in ['int64', 'int32']:
+                    schema_columns[col] = Column(
+                        int,
+                        checks=[
+                            Check.greater_than_or_equal_to(min_val),
+                            Check.less_than_or_equal_to(max_val)
+                        ],
+                        nullable=self.df[col].isnull().any()
+                    )
+                    print(f"  {col}: Integer [{min_val}, {max_val}]")
+                else:
+                    schema_columns[col] = Column(
+                        float,
+                        checks=[
+                            Check.greater_than_or_equal_to(min_val),
+                            Check.less_than_or_equal_to(max_val)
+                        ],
+                        nullable=self.df[col].isnull().any()
+                    )
+                    print(f"  {col}: Float [{min_val:.2f}, {max_val:.2f}]")
+            
+            elif pd.api.types.is_datetime64_any_dtype(column_data) or self._is_date_column(column_data):
+                # Date column
+                try:
+                    date_series = pd.to_datetime(column_data, errors='coerce')
+                    min_date = date_series.min()
+                    max_date = date_series.max()
+                    
+                    schema_columns[col] = Column(
+                        pd.Timestamp,
+                        checks=[
+                            Check.greater_than_or_equal_to(min_date),
+                            Check.less_than_or_equal_to(max_date)
+                        ],
+                        nullable=self.df[col].isnull().any()
+                    )
+                    print(f"  {col}: Date [{min_date.date()}, {max_date.date()}]")
+                except:
+                    # If date parsing fails, treat as string
+                    schema_columns[col] = Column(str, nullable=self.df[col].isnull().any())
+                    print(f"  {col}: String (date parsing failed)")
+            
+            else:
+                # String/categorical column
+                unique_values = column_data.unique()
+                
+                # Calculate max length safely
+                try:
+                    string_lengths = column_data.astype(str).str.len()
+                    max_length = string_lengths.max() if len(string_lengths) > 0 else None
+                    
+                    # Ensure max_length is valid (not None or NaN)
+                    if pd.isna(max_length) or max_length is None or max_length == 0:
+                        max_length = None  # Don't add length check
+                except:
+                    max_length = None
+                
+                checks = []
+                
+                # Add length check only if max_length is valid and not None
+                if max_length is not None and not pd.isna(max_length) and max_length > 0:
+                    try:
+                        checks.append(Check.str_length(max_val=int(max_length)))
+                    except (ValueError, TypeError):
+                        # Skip length check if there's any issue
+                        pass
+                
+                # If few unique values, treat as categorical
+                if len(unique_values) <= 20 and len(unique_values) > 1:
+                    # Filter out NaN values from unique_values
+                    valid_unique_values = [val for val in unique_values if pd.notna(val)]
+                    if valid_unique_values:
+                        checks.append(Check.isin(valid_unique_values))
+                        print(f"  {col}: Categorical {valid_unique_values[:5]}{'...' if len(valid_unique_values) > 5 else ''}")
+                    else:
+                        print(f"  {col}: String (all values are null)")
+                else:
+                    length_info = f"max length: {max_length}" if max_length else "no length constraint"
+                    print(f"  {col}: String ({length_info})")
+                
+                schema_columns[col] = Column(
+                    str,
+                    checks=checks if checks else None,
+                    nullable=self.df[col].isnull().any()
+                )
+        
+        # Create schema
+        self.schema = DataFrameSchema(
+            schema_columns,
+            checks=[
+                # Check for completely duplicate rows
+                Check(lambda df: ~df.duplicated().any(), error="Duplicate rows found")
+            ],
+            strict=False  # Allow additional columns
+        )
+        
+        print(f"\n✓ Created adaptive schema with {len(schema_columns)} column validations")
+        return self.schema
+    
+    def _is_date_column(self, series):
+        """Helper method to detect if a column contains dates"""
+        if series.dtype == 'object':
+            # Try to parse a sample of values as dates
+            sample_size = min(100, len(series))
+            sample = series.sample(sample_size) if len(series) > sample_size else series
+            
+            try:
+                # Suppress the warning by specifying infer_datetime_format=True
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    parsed = pd.to_datetime(sample, errors='coerce', infer_datetime_format=True)
+                # If more than 70% can be parsed as dates, consider it a date column
+                return parsed.notna().sum() / len(parsed) > 0.7
+            except:
+                return False
+        return False
+    
+    def validate_data(self):
+        """Validate the data using the created schema"""
+        if self.df is None:
+            print("❌ No data loaded. Please load CSV first.")
+            return False
+        
+        if self.schema is None:
+            print("❌ No schema created. Please create schema first.")
+            return False
+        
+        print("\n" + "="*60)
+        print("VALIDATING DATA")
+        print("="*60)
+        
+        try:
+            # Attempt to convert date columns
+            df_to_validate = self.df.copy()
+            for col in self.df.columns:
+                if self._is_date_column(self.df[col]):
+                    df_to_validate[col] = pd.to_datetime(df_to_validate[col], errors='coerce')
+            
+            # Validate with schema
+            validated_df = self.schema.validate(df_to_validate, lazy=True)
+            print("✓ Schema validation passed!")
+            
+            self.validation_results['schema_valid'] = True
+            self.validation_results['validated_df'] = validated_df
+            
+            return True
+            
+        except pa.errors.SchemaError as e:
+            print("❌ Schema validation failed:")
+            print(f"Error details: {e}")
+            
+            self.validation_results['schema_valid'] = False
+            self.validation_results['errors'] = str(e)
+            
+            return False
+    
+    def run_data_quality_checks(self):
+        """Run additional data quality checks"""
+        if self.df is None:
+            return
+        
+        print("\n" + "="*60)
+        print("DATA QUALITY ANALYSIS")
+        print("="*60)
+        
+        quality_report = {}
+        
+        # Check for completely empty rows
+        empty_rows = self.df.isnull().all(axis=1).sum()
+        quality_report['empty_rows'] = empty_rows
+        if empty_rows > 0:
+            print(f"⚠ Found {empty_rows} completely empty rows")
+        
+        # Check for duplicate rows
+        duplicate_rows = self.df.duplicated().sum()
+        quality_report['duplicate_rows'] = duplicate_rows
+        if duplicate_rows > 0:
+            print(f"⚠ Found {duplicate_rows} duplicate rows")
+        
+        # Check data consistency
+        for col in self.df.columns:
+            if self.df[col].dtype == 'object':
+                # Check for inconsistent formatting in string columns
+                unique_after_strip = self.df[col].astype(str).str.strip().nunique()
+                unique_before_strip = self.df[col].nunique()
+                
+                if unique_after_strip != unique_before_strip:
+                    print(f"⚠ Column '{col}' has inconsistent whitespace")
+        
+        # Statistical summary for numeric columns
+        numeric_cols = self.df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) > 0:
+            print(f"\nNumeric columns summary:")
+            print(self.df[numeric_cols].describe())
+        
+        self.validation_results['quality_report'] = quality_report
+        
+        return quality_report
+    
+    def generate_validation_report(self):
+        """Generate a comprehensive validation report and save to text file"""
+        if self.df is None:
+            print("❌ No data to report on")
+            return
+        
+        # Generate report content
+        report_lines = []
+        report_lines.append("="*80)
+        report_lines.append("COMPREHENSIVE CSV VALIDATION REPORT")
+        report_lines.append("="*80)
+        report_lines.append(f"File: {self.csv_file_path}")
+        report_lines.append(f"Validation Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report_lines.append(f"Total Records: {len(self.df):,}")
+        report_lines.append(f"Total Columns: {len(self.df.columns)}")
+        report_lines.append("")
+        
+        # Schema validation status
+        schema_status = self.validation_results.get('schema_valid', 'Not tested')
+        report_lines.append(f"Schema Validation: {'✓ PASSED' if schema_status else '❌ FAILED'}")
+        
+        # Data quality summary
+        quality_report = self.validation_results.get('quality_report', {})
+        if quality_report:
+            report_lines.append(f"Empty Rows: {quality_report.get('empty_rows', 0)}")
+            report_lines.append(f"Duplicate Rows: {quality_report.get('duplicate_rows', 0)}")
+        
+        report_lines.append("")
+        report_lines.append("COLUMN ANALYSIS")
+        report_lines.append("-" * 50)
+        
+        # Detailed column analysis
+        for col in self.df.columns:
+            report_lines.append(f"\nColumn: {col}")
+            report_lines.append(f"  Data Type: {self.df[col].dtype}")
+            report_lines.append(f"  Unique Values: {self.df[col].nunique():,}")
+            report_lines.append(f"  Missing Values: {self.df[col].isnull().sum():,} ({self.df[col].isnull().sum()/len(self.df)*100:.1f}%)")
+            
+            # Add sample values for categorical columns
+            if self.df[col].nunique() <= 10:
+                unique_vals = self.df[col].dropna().unique()
+                report_lines.append(f"  Unique Values: {list(unique_vals)}")
+            elif self.df[col].dtype == 'object':
+                sample_vals = self.df[col].dropna().head(5).tolist()
+                report_lines.append(f"  Sample Values: {sample_vals}")
+            
+            # Add statistics for numeric columns
+            if pd.api.types.is_numeric_dtype(self.df[col]):
+                stats = self.df[col].describe()
+                report_lines.append(f"  Min: {stats['min']:.2f}")
+                report_lines.append(f"  Max: {stats['max']:.2f}")
+                report_lines.append(f"  Mean: {stats['mean']:.2f}")
+                report_lines.append(f"  Median: {stats['50%']:.2f}")
+                report_lines.append(f"  Std Dev: {stats['std']:.2f}")
+        
+        # Add data quality issues
+        report_lines.append("")
+        report_lines.append("DATA QUALITY ISSUES")
+        report_lines.append("-" * 50)
+        
+        issues_found = False
+        
+        # Check for columns with high missing data
+        high_missing = self.df.columns[self.df.isnull().sum() / len(self.df) > 0.5]
+        if len(high_missing) > 0:
+            report_lines.append(f"Columns with >50% missing data: {list(high_missing)}")
+            issues_found = True
+        
+        # Check for potential duplicates
+        if quality_report.get('duplicate_rows', 0) > 0:
+            report_lines.append(f"Found {quality_report['duplicate_rows']} duplicate rows")
+            issues_found = True
+        
+        # Check for empty rows
+        if quality_report.get('empty_rows', 0) > 0:
+            report_lines.append(f"Found {quality_report['empty_rows']} completely empty rows")
+            issues_found = True
+        
+        # Check for outliers in numeric columns
+        numeric_cols = self.df.select_dtypes(include=[np.number]).columns
+        for col in numeric_cols:
+            Q1 = self.df[col].quantile(0.25)
+            Q3 = self.df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            outliers = self.df[(self.df[col] < Q1 - 1.5 * IQR) | (self.df[col] > Q3 + 1.5 * IQR)]
+            if len(outliers) > 0:
+                report_lines.append(f"Column '{col}': {len(outliers)} potential outliers detected")
+                issues_found = True
+        
+        if not issues_found:
+            report_lines.append("✓ No major data quality issues detected")
+        
+        # Add summary statistics
+        report_lines.append("")
+        report_lines.append("SUMMARY STATISTICS")
+        report_lines.append("-" * 50)
+        
+        if len(numeric_cols) > 0:
+            report_lines.append("\nNumeric Columns Summary:")
+            summary_stats = self.df[numeric_cols].describe()
+            report_lines.append(str(summary_stats))
+        
+        # Schema validation errors (if any)
+        if not schema_status and 'errors' in self.validation_results:
+            report_lines.append("")
+            report_lines.append("SCHEMA VALIDATION ERRORS")
+            report_lines.append("-" * 50)
+            report_lines.append(str(self.validation_results['errors']))
+        
+        report_lines.append("")
+        report_lines.append("="*80)
+        report_lines.append("END OF REPORT")
+        report_lines.append("="*80)
+        
+        # Print to console
+        for line in report_lines:
+            print(line)
+        
+        # Save to text file
+        import os
+        file_name = os.path.splitext(os.path.basename(self.csv_file_path))[0]
+        report_filename = f"{file_name}_validation_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        try:
+            with open(report_filename, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(report_lines))
+            print(f"\n✓ Detailed report saved to: {report_filename}")
+        except Exception as e:
+            print(f"❌ Error saving report: {e}")
+        
+        return report_filename
+    
+    def run_complete_validation(self):
+        """Run the complete validation pipeline"""
+        print("Starting complete CSV validation pipeline...")
+        
+        # Step 1: Load data
+        if not self.load_csv():
+            return False
+        
+        # Step 2: Inspect structure
+        self.inspect_data_structure()
+        
+        # Step 3: Create schema
+        self.create_adaptive_schema()
+        
+        # Step 4: Validate data
+        validation_success = self.validate_data()
+        
+        # Step 5: Quality checks
+        self.run_data_quality_checks()
+        
+        # Step 6: Generate report
+        self.generate_validation_report()
+        
+        return validation_success
+
+# Main function to validate any CSV file
+def validate_csv_file(csv_file_path):
+    """Main function to validate any CSV file"""
+    validator = CSVValidator(csv_file_path)
+    success = validator.run_complete_validation()
+    
+    if success:
+        return validator.validation_results.get('validated_df')
+    else:
+        return None
+
+# Example usage
+if __name__ == "__main__":
+    # Titanic dataset file path
+    csv_file_path = r'C:\Users\HP\Desktop\TEST\titanic.csv'
+    
+    # Run validation
+    validated_data = validate_csv_file(csv_file_path)
+    
+    if validated_data is not None:
+        print(f"\n✓ Validation completed successfully!")
+        print(f"Validated data shape: {validated_data.shape}")
+    else:
+        print(f"\n❌ Validation failed or encountered errors")
