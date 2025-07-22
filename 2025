@@ -1,1 +1,131 @@
 
+import json
+
+def analyze_json_files(file_path):
+    """
+    Analyze JSON strings from a text file to find common keys and extra keys.
+    
+    Args:
+        file_path (str): Path to the text file containing JSON strings (one per line)
+    
+    Returns:
+        tuple: (common_json_sample, extra_keys_dict)
+    """
+    
+    # Read JSON strings from file
+    json_objects = []
+    json_labels = ['A', 'B', 'C', 'D', 'E']  # Labels for each JSON
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+            
+        # Parse each JSON string
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if line:  # Skip empty lines
+                json_obj = json.loads(line)
+                json_objects.append(json_obj)
+                
+    except FileNotFoundError:
+        print(f"Error: File '{file_path}' not found.")
+        return None, None
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format in line {i+1}. {e}")
+        return None, None
+    
+    if not json_objects:
+        print("No valid JSON objects found in the file.")
+        return None, None
+    
+    # Find common keys across all JSON objects
+    all_keys = [set(json_obj.keys()) for json_obj in json_objects]
+    common_keys = set.intersection(*all_keys)
+    
+    # Create common JSON sample using values from the first JSON
+    common_json_sample = {key: json_objects[0][key] for key in common_keys}
+    
+    # Find extra keys for each JSON
+    extra_keys_dict = {}
+    for i, json_obj in enumerate(json_objects):
+        label = json_labels[i] if i < len(json_labels) else f"JSON_{i+1}"
+        extra_keys = set(json_obj.keys()) - common_keys
+        
+        if extra_keys:
+            # Get key names with their values
+            extra_keys_dict[label] = {key: json_obj[key] for key in extra_keys}
+        else:
+            extra_keys_dict[label] = {}
+    
+    return common_json_sample, extra_keys_dict
+
+def print_results(common_json, extra_keys):
+    """Print the results in a formatted way"""
+    
+    print("=" * 50)
+    print("COMMON KEYS (Sample JSON):")
+    print("=" * 50)
+    print(json.dumps(common_json, indent=2, ensure_ascii=False))
+    
+    print("\n" + "=" * 50)
+    print("EXTRA KEYS WITH VALUES:")
+    print("=" * 50)
+    
+    for label, extra_data in extra_keys.items():
+        print(f"\n{label}:")
+        if extra_data:
+            for key, value in extra_data.items():
+                print(f"  {key}: {json.dumps(value, ensure_ascii=False)}")
+        else:
+            print("  No extra keys")
+
+# Main execution
+if __name__ == "__main__":
+    # Specify your file path here
+    file_path = "json_data.txt"  # Change this to your file path
+    
+    print("Analyzing JSON files...")
+    common_json, extra_keys = analyze_json_files(file_path)
+    
+    if common_json is not None and extra_keys is not None:
+        print_results(common_json, extra_keys)
+    else:
+        print("Analysis failed. Please check your file and try again.")
+
+# Alternative: Direct input method (if you want to test without a file)
+def analyze_json_strings_direct():
+    """
+    Direct method to analyze JSON strings without reading from file
+    """
+    # Your example JSON strings
+    json_strings = [
+        '{"accountHolderName":"Ashwin Chordiya","accountNumber":"1234567890","accountType":"Savings","balance":24500.75,"currency":"INR","branch":"Secunderabad"}',
+        '{"accountHolderName":"Meera Joshi","accountNumber":"9876543210","accountType":"Current","balance":105000.50,"currency":"INR","lastLogin":"2025-07-21T10:30:00Z"}',
+        '{"accountHolderName":"Rohit Kumar","accountNumber":"4567891230","accountType":"Savings","balance":7500.00,"currency":"INR","isActive":true,"mobileNumber":"+919876543210"}',
+        '{"accountHolderName":"Ananya Singh","accountNumber":"3216549870","accountType":"Joint","balance":1250000.00,"currency":"INR","creditScore":782,"email":"ananya.singh@example.com"}',
+        '{"accountHolderName":"Vikram Rao","accountNumber":"6549873210","accountType":"Salary","balance":56000.25,"currency":"INR","overdraftLimit":50000,"kycStatus":"Verified"}'
+    ]
+    
+    json_objects = [json.loads(json_str) for json_str in json_strings]
+    json_labels = ['A', 'B', 'C', 'D', 'E']
+    
+    # Find common keys
+    all_keys = [set(json_obj.keys()) for json_obj in json_objects]
+    common_keys = set.intersection(*all_keys)
+    
+    # Create common JSON sample
+    common_json_sample = {key: json_objects[0][key] for key in common_keys}
+    
+    # Find extra keys
+    extra_keys_dict = {}
+    for i, json_obj in enumerate(json_objects):
+        label = json_labels[i]
+        extra_keys = set(json_obj.keys()) - common_keys
+        extra_keys_dict[label] = {key: json_obj[key] for key in extra_keys}
+    
+    return common_json_sample, extra_keys_dict
+
+# Uncomment the lines below to test with your example data directly
+print("Testing with example data:")
+common_sample, extra_data = analyze_json_strings_direct()
+print_results(common_sample, extra_data)
