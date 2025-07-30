@@ -1,1 +1,54 @@
 
+import pandas as pd
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+
+# Your DataFrame is already defined as df
+
+# Define the columns you want bar charts for
+bar_columns = ['rank', 'elg', 'tree_node_id']
+
+# Container for all figures
+all_figs_html = ""
+
+# Loop over each unique tree
+for tree_id in df['tree_id'].unique():
+    df_tree = df[df['tree_id'] == tree_id]
+
+    # 1. Sunburst
+    sunburst_fig = go.Figure(go.Sunburst(
+        labels=df_tree['label'],
+        parents=df_tree['parent'],
+        values=df_tree['count'],
+        branchvalues='total',
+        hovertemplate='<b>%{label}</b><br>Count: %{value}<extra></extra>'
+    ))
+    sunburst_fig.update_layout(title_text=f"Tree {tree_id}: Sunburst", height=500)
+    sunburst_html = sunburst_fig.to_html(full_html=False, include_plotlyjs='cdn')
+
+    all_figs_html += f"<h2>Tree {tree_id}: Sunburst</h2>{sunburst_html}<br>"
+
+    # 2. Bar charts for each selected column
+    for col in bar_columns:
+        if col in df_tree.columns:
+            bar_df = df_tree[col].value_counts().reset_index()
+            bar_df.columns = [col, 'count']
+            bar_fig = go.Figure(go.Bar(x=bar_df[col], y=bar_df['count']))
+            bar_fig.update_layout(title=f"Tree {tree_id}: {col} distribution", xaxis_title=col, yaxis_title="Count", height=400)
+            bar_html = bar_fig.to_html(full_html=False, include_plotlyjs=False)
+            all_figs_html += f"<h3>{col} Distribution</h3>{bar_html}<br>"
+
+# Final: Save everything to one HTML
+with open("trees_summary.html", "w") as f:
+    f.write(f"""
+    <html>
+    <head>
+        <title>Tree Summary</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    </head>
+    <body>
+        <h1>Tree-wise Visualizations</h1>
+        {all_figs_html}
+    </body>
+    </html>
+    """)
