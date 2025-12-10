@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""
+Test Data Generator Script
+Generates test records by varying specified fields in a template JSON.
+Run from VS Code terminal: python script_name.py
+"""
+
+import json
+import itertools
+from typing import Any, Dict, List, Tuple
+
+
+# Hard-coded template JSON
+TEMPLATE = {
+    "requestId": "CLR-2025-789456",
+    "customerId": "CUST-445821",
+    "accountNumber": "4532-XXXX-XXXX-7891",
+    "currentCreditLimit": 8500,
+    "requestedCreditLimit": 15000,
+    "requestDate": "2025-12-10T14:32:18Z",
+    "accountAge": 38,
+    "accountStatus": "active",
+    "currentBalance": 2340.50,
+    "availableCredit": 6159.50,
+    "creditUtilizationRate": 27.5,
+    "paymentHistory": "excellent",
+    "missedPaymentsLast12Months": 0,
+    "missedPaymentsLifetime": 1,
+    "averageMonthlySpend": 3200.75,
+    "lastPaymentAmount": 2500.00,
+    "lastPaymentDate": "2025-11-28",
+    "annualIncome": 78000,
+    "employmentStatus": "full-time",
+    "employmentTenure": 62,
+    "debtToIncomeRatio": 32.8,
+    "creditScore": 742,
+    "numberOfCreditAccounts": 7,
+    "totalCreditLimit": 45000,
+    "recentCreditInquiries": 2,
+    "bankruptcyHistory": False,
+    "customerSegment": "prime",
+    "riskScore": 235,
+    "autoPayEnabled": True,
+    "previousIncreaseDate": "2023-08-15"
+}
+
+
+def parse_value(value_str: str) -> Any:
+    """
+    Parse a string value to appropriate Python type.
+    Tries: int -> float -> bool -> string
+    """
+    value_str = value_str.strip()
+    
+    # Try boolean
+    if value_str.lower() == 'true':
+        return True
+    elif value_str.lower() == 'false':
+        return False
+    
+    # Try integer
+    try:
+        return int(value_str)
+    except ValueError:
+        pass
+    
+    # Try float
+    try:
+        return float(value_str)
+    except ValueError:
+        pass
+    
+    # Return as string
+    return value_str
+
+
+def get_keys_to_vary() -> List[str]:
+    """
+    Ask user which keys they want to vary.
+    Returns list of valid keys from template.
+    """
+    print("\nAvailable keys in template:")
+    for i, key in enumerate(sorted(TEMPLATE.keys()), 1):
+        print(f"  {key}")
+    
+    while True:
+        print("\nEnter the keys you want to vary (comma-separated):")
+        user_input = input("> ").strip()
+        
+        if not user_input:
+            print("No keys entered. Please enter at least one key.")
+            continue
+        
+        # Parse keys
+        keys = [k.strip() for k in user_input.split(',')]
+        
+        # Validate keys
+        invalid_keys = [k for k in keys if k not in TEMPLATE]
+        if invalid_keys:
+            print(f"\nError: The following keys are not in the template: {', '.join(invalid_keys)}")
+            print("Please try again.")
+            continue
+        
+        return keys
+
+
+def get_values_for_key(key: str) -> List[Any]:
+    """
+    Ask user for comma-separated values for a specific key.
+    Returns list of parsed values.
+    """
+    while True:
+        print(f"\nEnter comma-separated values for '{key}':")
+        print(f"Current template value: {TEMPLATE[key]}")
+        user_input = input("> ").strip()
+        
+        if not user_input:
+            print("No values entered. Please enter at least one value.")
+            continue
+        
+        # Parse values
+        value_strings = [v.strip() for v in user_input.split(',')]
+        values = [parse_value(v) for v in value_strings if v]
+        
+        if not values:
+            print("No valid values provided. Please try again.")
+            continue
+        
+        return values
+
+
+def generate_test_records(variations: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+    """
+    Generate all combinations of test records using Cartesian product.
+    
+    Args:
+        variations: Dictionary mapping keys to lists of values
+    
+    Returns:
+        List of test record dictionaries
+    """
+    if not variations:
+        return [TEMPLATE.copy()]
+    
+    # Get keys and their value lists
+    keys = list(variations.keys())
+    value_lists = [variations[key] for key in keys]
+    
+    # Generate all combinations using Cartesian product
+    records = []
+    for combination in itertools.product(*value_lists):
+        # Start with template copy
+        record = TEMPLATE.copy()
+        
+        # Override with combination values
+        for key, value in zip(keys, combination):
+            record[key] = value
+        
+        records.append(record)
+    
+    return records
+
+
+def save_to_file(records: List[Dict[str, Any]], filename: str = "test_data.json"):
+    """
+    Save test data to a file (one JSON object per line).
+    """
+    try:
+        with open(filename, 'w') as f:
+            for record in records:
+                f.write(json.dumps(record) + '\n')
+        print(f"\nData successfully saved to: {filename}")
+    except Exception as e:
+        print(f"\nError saving file: {e}")
+
+
+def main():
+    """
+    Main script execution.
+    """
+    print("=" * 70)
+    print("Test Data Generator")
+    print("=" * 70)
+    
+    # Get keys to vary from user
+    keys_to_vary = get_keys_to_vary()
+    
+    # Get values for each key
+    variations = {}
+    for key in keys_to_vary:
+        values = get_values_for_key(key)
+        variations[key] = values
+    
+    # Generate test records
+    print("\nGenerating test records...")
+    test_records = generate_test_records(variations)
+    
+    # Calculate total combinations
+    total_combinations = 1
+    for values in variations.values():
+        total_combinations *= len(values)
+    
+    print(f"Generated {len(test_records)} test record(s) ({total_combinations} combinations)")
+    
+    # Print each JSON object on a single line to stdout
+    print("\n" + "=" * 70)
+    print("JSON OUTPUT (stdout):")
+    print("=" * 70)
+    for record in test_records:
+        print(json.dumps(record))
+    
+    # Ask if user wants to save to file
+    print("\n" + "=" * 70)
+    save_response = input("\nDo you want to save this to a file? (yes/no): ").strip().lower()
+    
+    if save_response in ['yes', 'y']:
+        filename_input = input("Enter filename (press Enter for 'test_data.json'): ").strip()
+        filename = filename_input if filename_input else "test_data.json"
+        save_to_file(test_records, filename)
+    else:
+        print("\nData not saved to file.")
+    
+    print("\nScript completed successfully!")
+
+
+if __name__ == "__main__":
+    main()
