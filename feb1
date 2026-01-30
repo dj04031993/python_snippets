@@ -1,0 +1,179 @@
+import pandas as pd
+import plotly.graph_objects as go
+import webbrowser
+import os
+
+# Read the CSV file
+df = pd.read_csv(r'C:\Users\HP\Desktop\CB\Book1.csv')
+
+# Sort by count in DESCENDING order (high volume first)
+df = df.sort_values('count(*)', ascending=False).reset_index(drop=True)
+
+print(f"Total rows: {len(df)}")
+print(f"Unique client groups: {df['client_group'].nunique()}")
+print("\nData sorted by count (descending):")
+print(df.head(10))
+
+# Create nodes list - maintain order based on volume
+all_nodes = []
+node_dict = {}
+node_values = {}  # Store node values for display
+
+# Get client groups sorted by total volume
+client_group_totals = df.groupby('client_group')['count(*)'].sum().sort_values(ascending=False)
+client_groups = client_group_totals.index.tolist()
+
+# Add client groups with their counts
+for cg in client_groups:
+    node_label = f"{cg}\n({client_group_totals[cg]:,.0f})"
+    all_nodes.append(node_label)
+    node_dict[cg] = len(all_nodes) - 1
+    node_values[node_label] = client_group_totals[cg]
+
+# Get eligible trees sorted by total volume
+eligible_totals = df.groupby('eligible_tree_name')['count(*)'].sum().sort_values(ascending=False)
+eligible_trees = eligible_totals.index.tolist()
+
+# Add eligible trees with their counts
+for et in eligible_trees:
+    node_label = f"{et}\n({eligible_totals[et]:,.0f})"
+    all_nodes.append(node_label)
+    node_dict[et] = len(all_nodes) - 1
+    node_values[node_label] = eligible_totals[et]
+
+# Get treatment trees sorted by total volume
+treatment_totals = df.groupby('treatment_tree_name')['count(*)'].sum().sort_values(ascending=False)
+treatment_trees = treatment_totals.index.tolist()
+
+# Add treatment trees with their counts
+for tt in treatment_trees:
+    node_label = f"{tt}\n({treatment_totals[tt]:,.0f})"
+    all_nodes.append(node_label)
+    node_dict[tt] = len(all_nodes) - 1
+    node_values[node_label] = treatment_totals[tt]
+
+print(f"\nTotal nodes in Sankey: {len(all_nodes)}")
+print(f"Client groups: {len(client_groups)}")
+
+# Create links
+source = []
+target = []
+value = []
+link_colors = []
+
+# Extended color palette with 15+ distinct colors
+color_palette = [
+    'rgba(31, 119, 180, 0.5)',      # Blue
+    'rgba(255, 127, 14, 0.5)',      # Orange
+    'rgba(44, 160, 44, 0.5)',       # Green
+    'rgba(214, 39, 40, 0.5)',       # Red
+    'rgba(148, 103, 189, 0.5)',     # Purple
+    'rgba(140, 86, 75, 0.5)',       # Brown
+    'rgba(227, 119, 194, 0.5)',     # Pink
+    'rgba(127, 127, 127, 0.5)',     # Gray
+    'rgba(188, 189, 34, 0.5)',      # Olive
+    'rgba(23, 190, 207, 0.5)',      # Cyan
+    'rgba(255, 152, 150, 0.5)',     # Light Red
+    'rgba(197, 176, 213, 0.5)',     # Lavender
+    'rgba(196, 156, 148, 0.5)',     # Tan
+    'rgba(247, 182, 210, 0.5)',     # Light Pink
+    'rgba(199, 199, 199, 0.5)',     # Silver
+    'rgba(219, 219, 141, 0.5)',     # Light Olive
+    'rgba(158, 218, 229, 0.5)',     # Light Cyan
+    'rgba(255, 187, 120, 0.5)',     # Peach
+    'rgba(152, 223, 138, 0.5)',     # Light Green
+    'rgba(174, 199, 232, 0.5)',     # Light Blue
+]
+
+# Assign colors to client groups
+client_group_colors = {}
+for idx, cg in enumerate(client_groups):
+    client_group_colors[cg] = color_palette[idx % len(color_palette)]
+
+# Create node colors
+node_colors = []
+for i, node in enumerate(all_nodes):
+    # Extract original name (before the count)
+    original_name = node.split('\n')[0]
+    
+    if original_name in client_groups:
+        # Use solid color for client groups
+        color = client_group_colors[original_name].replace('0.5', '0.8')
+        node_colors.append(color)
+    else:
+        # Use lighter color for eligible and treatment trees
+        node_colors.append('rgba(200, 200, 200, 0.8)')
+
+# Link 1: client_group -> eligible_tree_name
+for _, row in df.iterrows():
+    source.append(node_dict[row['client_group']])
+    target.append(node_dict[row['eligible_tree_name']])
+    value.append(row['count(*)'])
+    link_colors.append(client_group_colors[row['client_group']])
+
+# Link 2: eligible_tree_name -> treatment_tree_name
+for _, row in df.iterrows():
+    source.append(node_dict[row['eligible_tree_name']])
+    target.append(node_dict[row['treatment_tree_name']])
+    value.append(row['count(*)'])
+    link_colors.append(client_group_colors[row['client_group']])
+
+# Create Sankey diagram
+fig = go.Figure(data=[go.Sankey(
+    arrangement='snap',
+    node=dict(
+        pad=40,  # Increased spacing between nodes
+        thickness=30,  # Single thickness value - thick enough for labels
+        line=dict(color="black", width=0.5),
+        label=all_nodes,  # Labels now include counts
+        color=node_colors,
+        hovertemplate='%{label}<extra></extra>'
+    ),
+    link=dict(
+        source=source,
+        target=target,
+        value=value,
+        color=link_colors,
+        hovertemplate='%{source.label} → %{target.label}<br>Flow: %{value:,.0f}<extra></extra>'
+    )
+)])
+
+# Update layout
+fig.update_layout(
+    title=dict(
+        text="Client Group → Eligible Tree → Treatment Tree Flow<br><sub>(Sorted by Volume: High to Low | Counts shown on nodes)</sub>",
+        font=dict(size=22, color='black'),
+        x=0.5,
+        xanchor='center'
+    ),
+    font=dict(size=10, family='Arial, sans-serif'),
+    height=1200,  # Increased for better visibility
+    width=1800,   # Wider for more space
+    paper_bgcolor='white',
+    plot_bgcolor='white',
+    margin=dict(l=40, r=40, t=100, b=40)
+)
+
+# Save to HTML
+output_file = "sankey_diagram.html"
+fig.write_html(output_file)
+print(f"\nSankey diagram saved as '{output_file}'")
+
+# Print summary statistics
+print("\n" + "="*80)
+print("SUMMARY BY CLIENT GROUP (Sorted by Volume - High to Low)")
+print("="*80)
+summary = df.groupby('client_group').agg({
+    'count(*)': 'sum',
+    'eligible_tree_name': 'nunique',
+    'treatment_tree_name': 'nunique'
+}).round(0)
+summary.columns = ['Total Count', 'Unique Eligible Trees', 'Unique Treatment Trees']
+summary = summary.sort_values('Total Count', ascending=False)
+print(summary)
+print(f"\nTotal Records: {df['count(*)'].sum():,.0f}")
+
+# Automatically open in browser
+abs_path = os.path.abspath(output_file)
+webbrowser.open('file://' + abs_path)
+print(f"\nOpening in browser: {abs_path}")
